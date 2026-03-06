@@ -1,0 +1,51 @@
+name: Scheduled Inventory Sync
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    env:
+      INVENTORY_SYNC_WEBHOOK_URL: ${{ secrets.INVENTORY_SYNC_WEBHOOK_URL }}
+      INVENTORY_WEBHOOK_TOKEN: ${{ secrets.INVENTORY_WEBHOOK_TOKEN }}
+      INVENTORY_SYNC_PAYLOAD_JSON: ${{ secrets.INVENTORY_SYNC_PAYLOAD_JSON }}
+    steps:
+      - name: Verify sync configuration
+        run: |
+          missing=0
+          if [ -z "$INVENTORY_SYNC_WEBHOOK_URL" ]; then
+            echo "Missing INVENTORY_SYNC_WEBHOOK_URL; skipping run."
+            missing=1
+          fi
+          if [ -z "$INVENTORY_WEBHOOK_TOKEN" ]; then
+            echo "Missing INVENTORY_WEBHOOK_TOKEN; skipping run."
+            missing=1
+          fi
+          if [ -z "$INVENTORY_SYNC_PAYLOAD_JSON" ]; then
+            echo "Missing INVENTORY_SYNC_PAYLOAD_JSON; skipping run."
+            missing=1
+          fi
+          if [ "$missing" -eq 1 ]; then
+            exit 0
+          fi
+
+      - name: Post scheduled sync payload
+        run: |
+          status=$(curl -sS -o /tmp/inventory-sync-response.json -w "%{http_code}" \
+            -X POST "$INVENTORY_SYNC_WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -H "x-inventory-token: $INVENTORY_WEBHOOK_TOKEN" \
+            --data "$INVENTORY_SYNC_PAYLOAD_JSON")
+
+          cat /tmp/inventory-sync-response.json || true
+
+          if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
+            echo "Inventory sync failed with HTTP $status"
+            exit 1
+          fi

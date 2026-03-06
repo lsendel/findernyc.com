@@ -1,0 +1,47 @@
+name: Weekly Agent Calibration
+
+on:
+  schedule:
+    - cron: '0 11 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  calibration:
+    runs-on: ubuntu-latest
+    env:
+      CI: true
+      AGENT_MODE: warn
+      RELEASE_POLICY: warn
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run agent suite in calibration mode
+        run: node scripts/agents/run-all.mjs
+
+      - name: Publish calibration telemetry summary
+        if: always()
+        run: |
+          if [ -f output/agent-reports/release-telemetry-kpi-snapshot.md ]; then
+            cat output/agent-reports/release-telemetry-kpi-snapshot.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload calibration artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: weekly-calibration-artifacts
+          path: output/agent-reports

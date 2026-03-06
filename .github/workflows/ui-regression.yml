@@ -1,0 +1,72 @@
+name: UI Regression
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ui-regression:
+    runs-on: ubuntu-latest
+    env:
+      CI: true
+      UI_BASE_URL: http://127.0.0.1:8788
+      PLAYWRIGHT_CLI_CMD: npx --yes --package @playwright/cli playwright-cli
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browser
+        run: npx --yes --package @playwright/cli playwright-cli install-browser
+
+      - name: Start local app
+        run: |
+          npm run dev -- --port 8788 > /tmp/wrangler.log 2>&1 &
+          echo $! > /tmp/wrangler.pid
+
+      - name: Wait for app readiness
+        run: |
+          for i in $(seq 1 45); do
+            if curl -fsS "${UI_BASE_URL}" >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "App did not become ready in time"
+          cat /tmp/wrangler.log || true
+          exit 1
+
+      - name: Run UI regression agent
+        run: npm run agent:ui-regression
+
+      - name: Upload UI artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-regression-artifacts
+          path: |
+            output/playwright/current
+            output/agent-reports/ui-regression.md
+            output/agent-reports/ui-regression.json
+            /tmp/wrangler.log
+
+      - name: Stop local app
+        if: always()
+        run: |
+          if [ -f /tmp/wrangler.pid ]; then
+            kill "$(cat /tmp/wrangler.pid)" || true
+          fi

@@ -1,0 +1,8 @@
+node_modules/
+.wrangler/
+.playwright-cli/
+output/agent-reports/
+output/playwright/current/
+coverage/
+.idea/
+.kiro/

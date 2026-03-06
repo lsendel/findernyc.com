@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760" role="img" aria-label="Local event scene illustration">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#27104d"/>
+      <stop offset="100%" stop-color="#5a2b93"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#f5f2ff"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="760" fill="url(#bg)"/>
+  <circle cx="190" cy="120" r="86" fill="#f59e0b" opacity="0.25"/>
+  <circle cx="1080" cy="640" r="130" fill="#8b5cf6" opacity="0.2"/>
+  <rect x="94" y="360" width="478" height="280" rx="24" fill="#130a2e" opacity="0.75"/>
+  <rect x="124" y="394" width="302" height="26" rx="8" fill="#ffffff" opacity="0.9"/>
+  <rect x="124" y="434" width="416" height="18" rx="8" fill="#bfa9ef" opacity="0.95"/>
+  <rect x="124" y="464" width="380" height="18" rx="8" fill="#bfa9ef" opacity="0.95"/>
+  <rect x="124" y="520" width="164" height="44" rx="12" fill="#f59e0b"/>
+  <text x="206" y="548" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#1a0533">Tonight Picks</text>
+  <rect x="650" y="92" width="470" height="576" rx="32" fill="url(#card)"/>
+  <rect x="690" y="142" width="390" height="120" rx="18" fill="#ece6ff"/>
+  <rect x="722" y="176" width="260" height="20" rx="10" fill="#3d1a6e"/>
+  <rect x="722" y="210" width="200" height="16" rx="8" fill="#7c3aed" opacity="0.8"/>
+  <rect x="690" y="290" width="390" height="120" rx="18" fill="#ece6ff"/>
+  <rect x="722" y="324" width="244" height="20" rx="10" fill="#3d1a6e"/>
+  <rect x="722" y="358" width="180" height="16" rx="8" fill="#7c3aed" opacity="0.8"/>
+  <rect x="690" y="438" width="390" height="120" rx="18" fill="#ece6ff"/>
+  <rect x="722" y="472" width="220" height="20" rx="10" fill="#3d1a6e"/>
+  <rect x="722" y="506" width="150" height="16" rx="8" fill="#7c3aed" opacity="0.8"/>
+</svg>

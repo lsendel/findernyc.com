@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80" role="img" aria-label="Spotlight icon">
+  <rect x="10" y="12" width="44" height="22" rx="8" fill="#6d28d9"/>
+  <rect x="22" y="34" width="20" height="16" rx="4" fill="#8b5cf6"/>
+  <path d="M54 23 L70 16 L70 64 L54 57 Z" fill="#f59e0b" opacity="0.9"/>
+</svg>

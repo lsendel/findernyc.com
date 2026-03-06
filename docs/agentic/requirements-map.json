@@ -1,0 +1,188 @@
+[
+  {
+    "id": "R1",
+    "title": "Hero Section",
+    "sourcePatterns": [
+      "^src/templates/landing\\.ts$",
+      "^src/assets/css/styles\\.css$",
+      "^src/assets/js/main\\.ts$"
+    ],
+    "testPatterns": [
+      "^tests/property/hero\\.property\\.test\\.ts$",
+      "^tests/unit/cta-labels\\.test\\.ts$",
+      "^tests/unit/dom-structure\\.test\\.ts$"
+    ]
+  },
+  {
+    "id": "R2",
+    "title": "Trust Indicators Strip",
+    "sourcePatterns": [
+      "^src/templates/landing\\.ts$",
+      "^src/assets/css/styles\\.css$"
+    ],
+    "testPatterns": [
+      "^tests/unit/dom-structure\\.test\\.ts$",
+      "^tests/unit/cta-labels\\.test\\.ts$"
+    ]
+  },
+  {
+    "id": "R3",
+    "title": "Problem / Pain Section",
+    "sourcePatterns": [
+      "^src/templates/landing\\.ts$",
+      "^src/assets/css/styles\\.css$"
+    ],
+    "testPatterns": [
+      "^tests/property/sections\\.property\\.test\\.ts$",
+      "^tests/property/responsive\\.property\\.test\\.ts$"
+    ]
+  },
+  {
+    "id": "R4",
+    "title": "Solution Overview Section",
+    "sourcePatterns": [
+      "^src/templates/landing\\.ts$",
+      "^src/assets/css/styles\\.css$"
+    ],
+    "testPatterns": [
+      "^tests/property/sections\\.property\\.test\\.ts$",
+      "^tests/property/responsive\\.property\\.test\\.ts$"
+    ]
+  },
+  {
+    "id": "R5",
+    "title": "How It Works Section",
+    "sourcePatterns": [
+      "^src/templates/landing\\.ts$",
+      "^src/assets/css/styles\\.css$"
+    ],
+    "testPatterns": [
+      "^tests/property/responsive\\.property\\.test\\.ts$",
+      "^tests/unit/dom-structure\\.test\\.ts$"
+    ]
+  },
+  {
+    "id": "R6",
+    "title": "Features / Benefits Section",
+    "sourcePatterns": [
+      "^src/templates/landing\\.ts$",
+      "^src/assets/css/styles\\.css$"
+    ],
+    "testPatterns": [
+      "^tests/property/sections\\.property\\.test\\.ts$",
+      "^tests/property/accessibility\\.property\\.test\\.ts$"
+    ]
+  },
+  {
+    "id": "R7",
+    "title": "Social Proof Section",
+    "sourcePatterns": [
+      "^src/templates/landing\\.ts$",
+      "^src/assets/css/styles\\.css$",
+      "^src/assets/js/main\\.ts$"
+    ],
+    "testPatterns": [
+      "^tests/property/sections\\.property\\.test\\.ts$",
+      "^tests/property/responsive\\.property\\.test\\.ts$"
+    ]
+  },
+  {
+    "id": "R8",
+    "title": "Pricing Section",
+    "sourcePatterns": [
+      "^src/templates/landing\\.ts$",
+      "^src/assets/css/styles\\.css$",
+      "^src/assets/js/main\\.ts$"
+    ],
+    "testPatterns": [
+      "^tests/unit/pricing\\.test\\.ts$",
+      "^tests/property/sections\\.property\\.test\\.ts$",
+      "^tests/property/analytics\\.property\\.test\\.ts$"
+    ]
+  },
+  {
+    "id": "R9",
+    "title": "FAQ Section",
+    "sourcePatterns": [
+      "^src/templates/landing\\.ts$",
+      "^src/assets/js/main\\.ts$",
+      "^src/assets/css/styles\\.css$"
+    ],
+    "testPatterns": [
+      "^tests/unit/faq\\.test\\.ts$",
+      "^tests/property/faq-behavior\\.property\\.test\\.ts$",
+      "^tests/property/analytics\\.property\\.test\\.ts$"
+    ]
+  },
+  {
+    "id": "R10",
+    "title": "Final CTA Section",
+    "sourcePatterns": [
+      "^src/templates/landing\\.ts$",
+      "^src/assets/css/styles\\.css$",
+      "^src/assets/js/main\\.ts$"
+    ],
+    "testPatterns": [
+      "^tests/unit/cta-labels\\.test\\.ts$",
+      "^tests/property/analytics\\.property\\.test\\.ts$"
+    ]
+  },
+  {
+    "id": "R11",
+    "title": "Footer",
+    "sourcePatterns": [
+      "^src/templates/landing\\.ts$",
+      "^src/templates/content-page\\.ts$",
+      "^src/templates/contact\\.ts$"
+    ],
+    "testPatterns": [
+      "^tests/unit/faq\\.test\\.ts$",
+      "^tests/property/accessibility\\.property\\.test\\.ts$"
+    ]
+  },
+  {
+    "id": "R12",
+    "title": "Page-Level Performance and SEO",
+    "sourcePatterns": [
+      "^src/templates/landing\\.ts$",
+      "^src/templates/content-page\\.ts$",
+      "^src/index\\.ts$",
+      "^src/assets/js/main\\.ts$"
+    ],
+    "testPatterns": [
+      "^tests/unit/dom-structure\\.test\\.ts$",
+      "^tests/unit/seo-head\\.test\\.ts$",
+      "^tests/unit/seo-routes\\.test\\.ts$",
+      "^tests/property/sections\\.property\\.test\\.ts$"
+    ]
+  },
+  {
+    "id": "R13",
+    "title": "Mobile-First Responsive Layout",
+    "sourcePatterns": [
+      "^src/templates/landing\\.ts$",
+      "^src/assets/css/styles\\.css$",
+      "^src/assets/js/main\\.ts$"
+    ],
+    "testPatterns": [
+      "^tests/property/responsive\\.property\\.test\\.ts$",
+      "^tests/property/accessibility\\.property\\.test\\.ts$"
+    ]
+  },
+  {
+    "id": "R14",
+    "title": "Conversion Tracking and Analytics",
+    "sourcePatterns": [
+      "^src/assets/js/main\\.ts$",
+      "^src/routes/api/analytics\\.ts$",
+      "^src/contract\\.ts$",
+      "^src/db/schema\\.ts$",
+      "^src/templates/landing\\.ts$"
+    ],
+    "testPatterns": [
+      "^tests/property/analytics\\.property\\.test\\.ts$",
+      "^tests/unit/api-analytics\\.test\\.ts$",
+      "^tests/unit/contract\\.test\\.ts$"
+    ]
+  }
+]

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80" role="img" aria-label="Speech icon">
+  <rect x="10" y="14" width="60" height="40" rx="12" fill="#ede9fe" stroke="#6d28d9" stroke-width="4"/>
+  <polygon points="30,54 40,66 48,54" fill="#ede9fe" stroke="#6d28d9" stroke-width="4"/>
+  <circle cx="28" cy="34" r="4" fill="#6d28d9"/>
+  <circle cx="40" cy="34" r="4" fill="#6d28d9"/>
+  <circle cx="52" cy="34" r="4" fill="#6d28d9"/>
+</svg>

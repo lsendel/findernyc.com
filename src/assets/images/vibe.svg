@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80" role="img" aria-label="Vibe matching icon">
+  <rect x="8" y="8" width="64" height="64" rx="16" fill="#ede9fe"/>
+  <path d="M18 46 C24 32, 34 32, 40 46 C46 60, 56 60, 62 46" fill="none" stroke="#6d28d9" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="24" cy="28" r="5" fill="#f59e0b"/>
+  <circle cx="40" cy="24" r="5" fill="#7c3aed"/>
+  <circle cx="56" cy="28" r="5" fill="#f59e0b"/>
+</svg>

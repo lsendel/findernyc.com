@@ -1,0 +1,39 @@
+name: Nightly Agent Audit
+
+on:
+  schedule:
+    - cron: '0 10 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  nightly-audit:
+    runs-on: ubuntu-latest
+    env:
+      CI: true
+      AGENT_MODE: warn
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run non-blocking nightly audit
+        run: node scripts/agents/run-all.mjs
+
+      - name: Upload nightly reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-agent-reports
+          path: output/agent-reports

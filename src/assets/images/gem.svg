@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80" role="img" aria-label="Gem icon">
+  <polygon points="40,10 66,28 54,60 26,60 14,28" fill="#c4b5fd" stroke="#6d28d9" stroke-width="4"/>
+  <polyline points="14,28 40,28 66,28" fill="none" stroke="#6d28d9" stroke-width="3"/>
+  <polyline points="26,60 40,28 54,60" fill="none" stroke="#6d28d9" stroke-width="3"/>
+</svg>

@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80" role="img" aria-label="Spam icon">
+  <rect x="10" y="16" width="60" height="38" rx="10" fill="#fde8e8" stroke="#dc2626" stroke-width="4"/>
+  <line x1="18" y1="24" x2="62" y2="46" stroke="#dc2626" stroke-width="4"/>
+  <line x1="62" y1="24" x2="18" y2="46" stroke="#dc2626" stroke-width="4"/>
+</svg>

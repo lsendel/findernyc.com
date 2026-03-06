@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80" role="img" aria-label="Radar icon">
+  <circle cx="40" cy="40" r="34" fill="none" stroke="#7c3aed" stroke-width="4"/>
+  <circle cx="40" cy="40" r="20" fill="none" stroke="#7c3aed" stroke-width="3"/>
+  <circle cx="40" cy="40" r="6" fill="#f59e0b"/>
+  <path d="M40 40 L68 24" stroke="#f59e0b" stroke-width="4" stroke-linecap="round"/>
+</svg>

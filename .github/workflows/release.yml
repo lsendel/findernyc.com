@@ -1,0 +1,215 @@
+name: Release
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  release-gate:
+    runs-on: ubuntu-latest
+    outputs:
+      decision: ${{ steps.release_decision.outputs.decision }}
+    env:
+      CI: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run blocking agents
+        run: |
+          node scripts/agents/pr-quality.mjs
+          node scripts/agents/feature-compliance.mjs
+          node scripts/agents/api-contract.mjs
+          node scripts/agents/analytics-integrity.mjs
+          node scripts/agents/search-calibration.mjs
+          node scripts/agents/neighborhood-fit-calibration.mjs
+          node scripts/agents/recommendation-uplift-eval.mjs
+          node scripts/agents/seo-content.mjs
+          node scripts/agents/data-quality.mjs
+          node scripts/agents/release-gate.mjs
+          node scripts/rollout/feature-rollout-plan.mjs
+          node scripts/rollout/rollback-guard.mjs
+          node scripts/rollout/phase-execution.mjs
+          node scripts/agents/metrics-summary.mjs
+          node scripts/agents/release-telemetry-dashboard.mjs
+          node scripts/rollout/phase-promotion.mjs
+          node scripts/rollout/phase-audit.mjs
+          node scripts/rollout/phase-dwell.mjs
+          node scripts/rollout/phase-governor.mjs
+          node scripts/rollout/deployment-manifest.mjs
+          node scripts/rollout/rollback-rehearsal.mjs
+          node scripts/rollout/handoff-bundle.mjs
+          node scripts/rollout/cross-phase-consistency.mjs
+          node scripts/rollout/rollback-drill-matrix.mjs
+          node scripts/rollout/program-closeout.mjs
+          node scripts/agents/release-notes-summary.mjs
+
+      - name: Read release decision
+        id: release_decision
+        run: |
+          decision=$(node -e "const fs=require('fs');const p='output/agent-reports/release-decision.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));process.stdout.write(j.decision||'HOLD')")
+          echo "decision=$decision" >> "$GITHUB_OUTPUT"
+
+      - name: Upload release gate reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-agent-reports
+          path: output/agent-reports
+
+      - name: Publish release summaries
+        if: always()
+        run: |
+          if [ -f output/agent-reports/release-telemetry-kpi-snapshot.md ]; then
+            cat output/agent-reports/release-telemetry-kpi-snapshot.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ -f output/agent-reports/release-notes.md ]; then
+            cat output/agent-reports/release-notes.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ -f output/agent-reports/feature-flag-rollout-plan.md ]; then
+            cat output/agent-reports/feature-flag-rollout-plan.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ -f output/agent-reports/rollback-guard.md ]; then
+            cat output/agent-reports/rollback-guard.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ -f output/agent-reports/rollout-phase-execution.md ]; then
+            cat output/agent-reports/rollout-phase-execution.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ -f output/agent-reports/rollout-phase-promotion.md ]; then
+            cat output/agent-reports/rollout-phase-promotion.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ -f output/agent-reports/rollout-phase-audit.md ]; then
+            cat output/agent-reports/rollout-phase-audit.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ -f output/agent-reports/rollout-phase-dwell.md ]; then
+            cat output/agent-reports/rollout-phase-dwell.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ -f output/agent-reports/rollout-phase-governor.md ]; then
+            cat output/agent-reports/rollout-phase-governor.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ -f output/agent-reports/rollout-deployment-manifest.md ]; then
+            cat output/agent-reports/rollout-deployment-manifest.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ -f output/agent-reports/rollout-rollback-rehearsal.md ]; then
+            cat output/agent-reports/rollout-rollback-rehearsal.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ -f output/agent-reports/rollout-handoff-bundle.md ]; then
+            cat output/agent-reports/rollout-handoff-bundle.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ -f output/agent-reports/rollout-cross-phase-consistency.md ]; then
+            cat output/agent-reports/rollout-cross-phase-consistency.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ -f output/agent-reports/rollout-rollback-drill-matrix.md ]; then
+            cat output/agent-reports/rollout-rollback-drill-matrix.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ -f output/agent-reports/rollout-program-closeout.md ]; then
+            cat output/agent-reports/rollout-program-closeout.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  ui-regression:
+    needs: release-gate
+    runs-on: ubuntu-latest
+    env:
+      CI: true
+      UI_BASE_URL: http://127.0.0.1:8788
+      PLAYWRIGHT_CLI_CMD: npx --yes --package @playwright/cli playwright-cli
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browser
+        run: npx --yes --package @playwright/cli playwright-cli install-browser
+
+      - name: Start local app
+        run: |
+          npm run dev -- --port 8788 > /tmp/wrangler.log 2>&1 &
+          echo $! > /tmp/wrangler.pid
+
+      - name: Wait for app readiness
+        run: |
+          for i in $(seq 1 45); do
+            if curl -fsS "${UI_BASE_URL}" >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "App did not become ready in time"
+          cat /tmp/wrangler.log || true
+          exit 1
+
+      - name: Run UI regression agent
+        run: npm run agent:ui-regression
+
+      - name: Upload UI regression artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-ui-regression-artifacts
+          path: |
+            output/playwright/current
+            output/agent-reports/ui-regression.md
+            output/agent-reports/ui-regression.json
+            /tmp/wrangler.log
+
+      - name: Stop local app
+        if: always()
+        run: |
+          if [ -f /tmp/wrangler.pid ]; then
+            kill "$(cat /tmp/wrangler.pid)" || true
+          fi
+
+  deploy:
+    needs:
+      - release-gate
+      - ui-regression
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && needs.release-gate.outputs.decision == 'READY'
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build deploy bundle
+        run: npm run build
+
+      - name: Deploy to Cloudflare Workers
+        if: env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != ''
+        run: npx wrangler deploy
+
+      - name: Deploy skipped (missing Cloudflare secrets)
+        if: env.CLOUDFLARE_API_TOKEN == '' || env.CLOUDFLARE_ACCOUNT_ID == ''
+        run: echo "Cloudflare deploy skipped because required secrets are not configured."
