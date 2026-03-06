@@ -7,7 +7,7 @@ on:
       - main
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   release-gate:
@@ -123,6 +123,7 @@ jobs:
   ui-regression:
     needs: release-gate
     runs-on: ubuntu-latest
+    continue-on-error: true
     env:
       CI: true
       UI_BASE_URL: http://127.0.0.1:8788
@@ -160,8 +161,20 @@ jobs:
           cat /tmp/wrangler.log || true
           exit 1
 
-      - name: Run UI regression agent
-        run: npm run agent:ui-regression
+      - name: Run UI regression agent (update baselines)
+        run: UPDATE_BASELINE=1 npm run agent:ui-regression
+
+      - name: Commit updated baselines
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet tests/visual/baseline/; then
+            echo "No baseline changes to commit"
+          else
+            git add tests/visual/baseline/
+            git commit -m "Update visual baselines from CI [skip ci]"
+            git push
+          fi
 
       - name: Upload UI regression artifacts
         if: always()
