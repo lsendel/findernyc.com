@@ -141,7 +141,7 @@ jobs:
         run: npm ci
 
       - name: Install Playwright browser
-        run: npx --yes --package @playwright/cli playwright-cli install-browser
+        run: npx --yes --package @playwright/cli playwright-cli install
 
       - name: Start local app
         run: |
