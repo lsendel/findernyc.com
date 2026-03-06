@@ -68,6 +68,15 @@ function getChangedFiles() {
     return fromStdoutLines(headRange.stdout);
   }
 
+  // Initial commit: no parent to diff against, list all tracked files
+  const revCount = runCommand('git rev-list --count HEAD');
+  if (revCount.success && revCount.stdout.trim() === '1') {
+    const allTracked = runCommand('git ls-tree -r --name-only HEAD');
+    if (allTracked.success && allTracked.stdout.trim()) {
+      return fromStdoutLines(allTracked.stdout);
+    }
+  }
+
   const staged = runCommand('git diff --name-only --diff-filter=ACMR');
   if (staged.success && staged.stdout.trim()) {
     return fromStdoutLines(staged.stdout);
@@ -94,7 +103,7 @@ const impacted = requirementMap
     const matchedSource = sourceFiles.filter((file) => matchesAny(file, req.sourcePatterns));
     const matchedTests = changedTests.filter((file) => matchesAny(file, req.testPatterns));
     const knownTests = req.testPatterns.flatMap((pattern) => {
-      const cmd = runCommand(`find tests -type f | rg "${pattern}"`);
+      const cmd = runCommand(`find tests -type f | grep -E "${pattern}"`);
       return cmd.success && cmd.stdout.trim() ? fromStdoutLines(cmd.stdout) : [];
     });
 
