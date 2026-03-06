@@ -186,7 +186,7 @@ jobs:
       - release-gate
       - ui-regression
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && needs.release-gate.outputs.decision == 'READY'
+    if: always() && github.ref == 'refs/heads/main' && needs.release-gate.outputs.decision == 'READY' && needs.release-gate.result == 'success'
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
