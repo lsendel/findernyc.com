@@ -6,3 +6,4 @@ output/playwright/current/
 coverage/
 .idea/
 .kiro/
+.env
