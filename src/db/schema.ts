@@ -1,59 +1,95 @@
-import { pgTable, serial, timestamp, varchar, jsonb, boolean, integer } from 'drizzle-orm/pg-core';
+import { integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
-export const leads = pgTable('leads', {
-  id: serial('id').primaryKey(),
-  email: varchar('email', { length: 255 }).notNull().unique(),
-  source_cta: varchar('source_cta', { length: 100 }),
-  source_section: varchar('source_section', { length: 50 }),
-  use_case: varchar('use_case', { length: 40 }),
-  team_size: varchar('team_size', { length: 40 }),
-  city: varchar('city', { length: 100 }),
-  borough: varchar('borough', { length: 30 }),
-  created_at: timestamp('created_at').defaultNow(),
+export const spots = sqliteTable('spots', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  name: text('name').notNull(),
+  slug: text('slug').notNull().unique(),
+  title: text('title'),
+  neighborhood: text('neighborhood'),
+  borough: text('borough'),
+  category: text('category'),
+  description: text('description'),
+  one_liner: text('one_liner'),
+  pro_tip: text('pro_tip'),
+  subway: text('subway'),
+  while_here: text('while_here'),
+  best_time: text('best_time'),
+  avoid_time: text('avoid_time'),
+  budget_note: text('budget_note'),
+  vibe_tags: text('vibe_tags'),
+  price_level: integer('price_level'),
+  latitude: real('latitude'),
+  longitude: real('longitude'),
+  google_maps_url: text('google_maps_url'),
+  photo_url: text('photo_url'),
+  source: text('source'),
+  published: integer('published', { mode: 'boolean' }).notNull().default(false),
+  created_at: integer('created_at', { mode: 'timestamp_ms' }).$defaultFn(() => new Date()),
+  updated_at: integer('updated_at', { mode: 'timestamp_ms' }).$defaultFn(() => new Date()),
 });
 
-export const waitlist_entries = pgTable('waitlist_entries', {
-  id: serial('id').primaryKey(),
-  email: varchar('email', { length: 255 }).notNull(),
-  zip_code: varchar('zip_code', { length: 10 }),
-  city: varchar('city', { length: 100 }),
-  use_case: varchar('use_case', { length: 40 }),
-  team_size: varchar('team_size', { length: 40 }),
-  goal: varchar('goal', { length: 180 }),
-  follow_up_route: varchar('follow_up_route', { length: 40 }),
-  follow_up_priority: varchar('follow_up_priority', { length: 20 }),
-  follow_up_status: varchar('follow_up_status', { length: 30 }),
-  created_at: timestamp('created_at').defaultNow(),
+export const spot_tips = sqliteTable('spot_tips', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  spot_id: integer('spot_id').notNull(),
+  text: text('text').notNull(),
+  author_name: text('author_name'),
+  author_area: text('author_area'),
+  approved: integer('approved', { mode: 'boolean' }).notNull().default(true),
+  created_at: integer('created_at', { mode: 'timestamp_ms' }).$defaultFn(() => new Date()),
 });
 
-export const analytics_events = pgTable('analytics_events', {
-  id: serial('id').primaryKey(),
-  event_name: varchar('event_name', { length: 100 }).notNull(),
-  properties: jsonb('properties'),
-  session_id: varchar('session_id', { length: 64 }),
-  created_at: timestamp('created_at').defaultNow(),
+export const neighborhoods = sqliteTable('neighborhoods', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  name: text('name').notNull(),
+  slug: text('slug').notNull().unique(),
+  borough: text('borough'),
+  vibe: text('vibe'),
+  best_for: text('best_for'),
+  safety_notes: text('safety_notes'),
+  getting_around: text('getting_around'),
+  stay_here_if: text('stay_here_if'),
+  skip_if: text('skip_if'),
+  photo_url: text('photo_url'),
+  latitude: real('latitude'),
+  longitude: real('longitude'),
 });
 
-export const saved_searches = pgTable('saved_searches', {
-  id: serial('id').primaryKey(),
-  query_text: varchar('query_text', { length: 200 }).notNull(),
-  filters: jsonb('filters'),
-  channel: varchar('channel', { length: 20 }).notNull(),
-  destination: varchar('destination', { length: 255 }),
-  session_id: varchar('session_id', { length: 64 }),
-  is_active: boolean('is_active').notNull().default(true),
-  created_at: timestamp('created_at').defaultNow(),
+export const guides = sqliteTable('guides', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  title: text('title').notNull(),
+  slug: text('slug').notNull().unique(),
+  type: text('type'),
+  neighborhood: text('neighborhood'),
+  borough: text('borough'),
+  excerpt: text('excerpt'),
+  body_html: text('body_html'),
+  cover_photo_url: text('cover_photo_url'),
+  seo_title: text('seo_title'),
+  seo_description: text('seo_description'),
+  published: integer('published', { mode: 'boolean' }).notNull().default(false),
+  published_at: integer('published_at', { mode: 'timestamp_ms' }),
+  created_at: integer('created_at', { mode: 'timestamp_ms' }).$defaultFn(() => new Date()),
+  updated_at: integer('updated_at', { mode: 'timestamp_ms' }).$defaultFn(() => new Date()),
 });
 
-export const alert_delivery_attempts = pgTable('alert_delivery_attempts', {
-  id: serial('id').primaryKey(),
-  saved_search_id: integer('saved_search_id').notNull(),
-  channel: varchar('channel', { length: 20 }).notNull(),
-  provider: varchar('provider', { length: 50 }).notNull(),
-  delivery: varchar('delivery', { length: 20 }).notNull(),
-  success: boolean('success').notNull(),
-  attempt_count: integer('attempt_count').notNull(),
-  status_code: integer('status_code'),
-  error: varchar('error', { length: 255 }),
-  created_at: timestamp('created_at').defaultNow(),
+export const guide_spots = sqliteTable('guide_spots', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  guide_id: integer('guide_id').notNull(),
+  spot_id: integer('spot_id').notNull(),
+  position: integer('position').notNull(),
+  context: text('context'),
+});
+
+export const ratings = sqliteTable('ratings', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  spot_id: integer('spot_id').notNull(),
+  score: integer('score').notNull(),
+  session_id: text('session_id'),
+  created_at: integer('created_at', { mode: 'timestamp_ms' }).$defaultFn(() => new Date()),
+});
+
+export const newsletter_subscribers = sqliteTable('newsletter_subscribers', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  email: text('email').notNull().unique(),
+  created_at: integer('created_at', { mode: 'timestamp_ms' }).$defaultFn(() => new Date()),
 });
