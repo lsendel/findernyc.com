@@ -5,9 +5,10 @@
   "scripts": {
     "dev": "wrangler dev",
     "build": "wrangler deploy --dry-run",
-    "build:client": "esbuild src/assets/js/main.ts src/assets/js/contact.ts src/assets/js/content-workflow.ts --bundle --minify --target=esnext --outdir=src/assets/js --entry-names=[name]",
+    "build:client": "esbuild src/assets/js/main.ts --bundle --minify --target=esnext --outdir=src/assets/js --entry-names=[name]",
     "typecheck": "tsc --noEmit",
     "test": "vitest --run",
+    "agent:production-regression": "node scripts/agents/production-regression.mjs",
     "test:a11y-gate": "vitest --run tests/a11y/axe.test.ts",
     "test:screen-reader-smoke": "node scripts/accessibility/screen-reader-smoke.mjs",
     "test:coverage": "vitest --run --coverage",
@@ -26,6 +27,9 @@
     "rollout:closeout": "node scripts/rollout/program-closeout.mjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "db:build-import:d1": "node scripts/d1/build-d1-import-sql.mjs",
+    "db:import:d1": "node scripts/d1/apply-d1-import.mjs",
+    "db:verify:d1": "node scripts/d1/verify-d1-import.mjs",
     "agent:pr-quality": "node scripts/agents/pr-quality.mjs",
     "agent:feature-compliance": "node scripts/agents/feature-compliance.mjs",
     "agent:api-contract": "node scripts/agents/api-contract.mjs",
@@ -45,13 +49,13 @@
     "agent:all": "node scripts/agents/run-all.mjs"
   },
   "dependencies": {
-    "@neondatabase/serverless": "^0.9.0",
     "@ts-rest/core": "^3.52.0",
     "drizzle-orm": "^0.30.0",
     "hono": "^4.12.5",
     "zod": "^3.22.0"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260329.1",
     "@hono/node-server": "^1.19.11",
     "@types/jsdom": "^28.0.0",
     "@vitest/coverage-v8": "^1.6.0",
@@ -62,6 +66,6 @@
     "jsdom": "^24.0.0",
     "typescript": "^5.4.0",
     "vitest": "^1.6.0",
-    "wrangler": "^3.57.0"
+    "wrangler": "^4.78.0"
   }
 }
