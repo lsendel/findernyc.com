@@ -1,4 +1,4 @@
-import { escapeHtml, pageShell, type PageMeta } from './layout';
+import { escapeHtml, pageShell, type PageMeta, type SiteContext } from './layout';
 
 export type SearchResultSpot = {
   slug: string;
@@ -158,6 +158,7 @@ type SearchPageOpts = {
   spots: SearchResultSpot[];
   guides: SearchResultGuide[];
   total: number;
+  site?: SiteContext;
 };
 
 export function searchPageHtml(opts: SearchPageOpts): string {
@@ -267,14 +268,16 @@ export function searchPageHtml(opts: SearchPageOpts): string {
     </div>
   </section>`;
 
+  const siteName = opts.site?.name ?? 'FinderNYC';
   const titleParts = [query, 'Search'].filter(Boolean);
   const meta: PageMeta = {
-    title: `${titleParts.join(' — ')} | FinderNYC`,
+    title: `${titleParts.join(' — ')} | ${siteName}`,
     description: query
-      ? `Search results for "${query}" on FinderNYC`
-      : 'Explore the best spots in NYC',
+      ? `Search results for "${query}" on ${siteName}`
+      : `Explore the best spots on ${siteName}`,
     path: '/search',
     noindex: true,
+    site: opts.site,
   };
 
   return pageShell(meta, bodyHtml);

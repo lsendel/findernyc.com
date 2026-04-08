@@ -1,4 +1,4 @@
-import { SITE_NAME, SITE_URL } from '../templates/layout';
+import { SITE_NAME, SITE_URL, type SiteContext } from '../templates/layout';
 
 type SpotLike = {
   name: string;
@@ -12,12 +12,13 @@ type SpotLike = {
   review_count?: number | null;
 };
 
-export function placeJsonLd(spot: SpotLike): Record<string, unknown> {
+export function placeJsonLd(spot: SpotLike, site?: SiteContext): Record<string, unknown> {
+  const siteUrl = site?.url ?? SITE_URL;
   const ld: Record<string, unknown> = {
     '@context': 'https://schema.org',
     '@type': 'Place',
     name: spot.name,
-    url: `${SITE_URL}/spot/${spot.slug}`,
+    url: `${siteUrl}/spots/${spot.slug}`,
     address: {
       '@type': 'PostalAddress',
       addressLocality: spot.neighborhood ?? undefined,
@@ -64,15 +65,17 @@ export function breadcrumbJsonLd(
   };
 }
 
-export function websiteJsonLd(): Record<string, unknown> {
+export function websiteJsonLd(site?: SiteContext): Record<string, unknown> {
+  const siteName = site?.name ?? SITE_NAME;
+  const siteUrl = site?.url ?? SITE_URL;
   return {
     '@context': 'https://schema.org',
     '@type': 'WebSite',
-    name: SITE_NAME,
-    url: SITE_URL,
+    name: siteName,
+    url: siteUrl,
     potentialAction: {
       '@type': 'SearchAction',
-      target: `${SITE_URL}/search?q={search_term_string}`,
+      target: `${siteUrl}/search?q={search_term_string}`,
       'query-input': 'required name=search_term_string',
     },
   };

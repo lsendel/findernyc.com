@@ -1,4 +1,4 @@
-import { escapeHtml, pageShell, SITE_URL } from './layout';
+import { escapeHtml, pageShell, SITE_URL, type SiteContext } from './layout';
 import { placeJsonLd, breadcrumbJsonLd } from '../lib/seo';
 
 export type SpotPageData = {
@@ -35,6 +35,7 @@ export type SpotPageData = {
     avg_rating: number | null;
     rating_count: number;
   }>;
+  site?: SiteContext;
 };
 
 function formatBorough(borough: string): string {
@@ -208,6 +209,7 @@ export function spotPageHtml(spot: SpotPageData): string {
 </article>`;
 
   // Meta
+  const siteUrl = spot.site?.url ?? SITE_URL;
   const metaDescription = spot.one_liner || spot.description.slice(0, 160);
 
   const structuredData = [
@@ -221,20 +223,22 @@ export function spotPageHtml(spot: SpotPageData): string {
       longitude: spot.longitude,
       avg_rating: spot.avg_rating,
       review_count: spot.rating_count,
-    }),
+    }, spot.site),
     breadcrumbJsonLd([
-      { name: 'Home', url: SITE_URL },
-      { name: spot.neighborhood, url: `${SITE_URL}/search?neighborhood=${encodeURIComponent(spot.neighborhood)}` },
-      { name: spot.title, url: `${SITE_URL}/spots/${spot.slug}` },
+      { name: 'Home', url: siteUrl },
+      { name: spot.neighborhood, url: `${siteUrl}/search?neighborhood=${encodeURIComponent(spot.neighborhood)}` },
+      { name: spot.title, url: `${siteUrl}/spots/${spot.slug}` },
     ]),
   ];
 
+  const siteName = spot.site?.name ?? 'FinderNYC';
   return pageShell(
     {
-      title: `${spot.title} | FinderNYC`,
+      title: `${spot.title} | ${siteName}`,
       description: metaDescription,
       path: `/spots/${spot.slug}`,
       structuredData,
+      site: spot.site,
     },
     bodyHtml,
   );

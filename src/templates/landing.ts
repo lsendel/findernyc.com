@@ -1,4 +1,4 @@
-import { escapeHtml, pageShell } from './layout';
+import { escapeHtml, pageShell, type SiteContext } from './layout';
 import { websiteJsonLd } from '../lib/seo';
 
 /* ------------------------------------------------------------------ */
@@ -51,16 +51,20 @@ const CATEGORY_PILLS: { emoji: string; label: string; slug: string }[] = [
 /*  Section builders                                                   */
 /* ------------------------------------------------------------------ */
 
-function heroSection(): string {
+function heroSection(site?: SiteContext): string {
   const pills = CATEGORY_PILLS.map(
     (c) =>
       `<a href="/search?category=${encodeURIComponent(c.slug)}" class="category-pill">${c.emoji} ${escapeHtml(c.label)}</a>`,
   ).join('\n          ');
 
+  const heroTitle = site?.heroTitle ?? 'Skip the tourist traps.\nHere\'s where real New Yorkers actually go.';
+  const heroSubtitle = site?.heroSubtitle ?? 'Curated by locals, not algorithms. Hidden gems, honest tips, zero BS.';
+  const titleParts = heroTitle.split('\n');
+
   return `<section class="hero">
     <div class="container">
-      <h1 class="hero-title">${escapeHtml('Skip the tourist traps.')}<br>${escapeHtml("Here's where real New Yorkers actually go.")}</h1>
-      <p class="hero-subtitle">${escapeHtml('Curated by locals, not algorithms. Hidden gems, honest tips, zero BS.')}</p>
+      <h1 class="hero-title">${titleParts.map((p) => escapeHtml(p)).join('<br>')}</h1>
+      <p class="hero-subtitle">${escapeHtml(heroSubtitle)}</p>
       <form action="/search" class="hero-search-form" role="search">
         <div class="hero-search-wrapper">
           <input type="search" name="q" class="hero-search-input" placeholder="tacos, rooftops, coffee, bookstores..." aria-label="Search spots">
@@ -173,14 +177,14 @@ function newsletterSection(): string {
 export function landingPageHtml(opts?: {
   featuredSpots?: FeaturedSpot[];
   neighborhoods?: FeaturedNeighborhood[];
-  /** @deprecated kept for backwards compat until index.ts is rewritten */
-  opsMode?: boolean;
+  site?: SiteContext;
 }): string {
   const spots = opts?.featuredSpots ?? [];
   const hoods = opts?.neighborhoods ?? [];
+  const site = opts?.site;
 
   const body = [
-    heroSection(),
+    heroSection(site),
     featuredSection(spots),
     neighborhoodsSection(hoods),
     newsletterSection(),
@@ -188,11 +192,11 @@ export function landingPageHtml(opts?: {
 
   return pageShell(
     {
-      title: 'FinderNYC \u2014 Skip the Tourist Traps. Real NYC Hidden Gems.',
-      description:
-        'Discover where real New Yorkers actually go. Hidden gems, local tips, and honest recommendations.',
+      title: site?.metaTitle ?? 'FinderNYC \u2014 Skip the Tourist Traps. Real NYC Hidden Gems.',
+      description: site?.metaDescription ?? 'Discover where real New Yorkers actually go. Hidden gems, local tips, and honest recommendations.',
       path: '/',
-      structuredData: [websiteJsonLd()],
+      structuredData: [websiteJsonLd(site)],
+      site,
     },
     body,
   );

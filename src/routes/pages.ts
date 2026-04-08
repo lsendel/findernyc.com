@@ -2,8 +2,9 @@ import { Hono } from 'hono';
 import { landingPageHtml } from '../templates/landing';
 import { spotPageHtml, type SpotPageData } from '../templates/spot';
 import { searchPageHtml, type SearchResultSpot, type SearchResultGuide } from '../templates/search';
+import type { SiteContext } from '../templates/layout';
 
-type Env = { Bindings: { DB: D1Database } };
+type Env = { Bindings: { DB: D1Database }; Variables: { site: SiteContext } };
 
 const pagesRouter = new Hono<Env>();
 
@@ -41,6 +42,7 @@ pagesRouter.get('/', async (c) => {
     landingPageHtml({
       featuredSpots: spotsResult.results as any[],
       neighborhoods: neighborhoodsResult.results as any[],
+      site: c.get('site'),
     }),
   );
 });
@@ -94,6 +96,7 @@ pagesRouter.get('/spots/:slug', async (c) => {
     ...(spot as any),
     tips: tipsResult.results as any[],
     related_spots: relatedResult.results as any[],
+    site: c.get('site'),
   };
 
   return c.html(spotPageHtml(data));
@@ -203,6 +206,7 @@ pagesRouter.get('/search', async (c) => {
       spots,
       guides,
       total,
+      site: c.get('site'),
     }),
   );
   } catch (err) {

@@ -1,6 +1,59 @@
 export const SITE_NAME = 'FinderNYC';
 export const SITE_URL = 'https://findernyc.com';
 
+// Multi-domain site context
+export type SiteContext = {
+  name: string;
+  url: string;
+  tagline: string;
+  heroTitle: string;
+  heroSubtitle: string;
+  metaTitle: string;
+  metaDescription: string;
+  city: string | null; // null = multi-city umbrella
+};
+
+const SITES: Record<string, SiteContext> = {
+  'findernyc.com': {
+    name: 'FinderNYC',
+    url: 'https://findernyc.com',
+    tagline: 'Skip the tourist traps.',
+    heroTitle: 'Skip the tourist traps.\nHere\'s where real New Yorkers actually go.',
+    heroSubtitle: 'Curated by locals, not algorithms. Hidden gems, honest tips, zero BS.',
+    metaTitle: 'FinderNYC — Skip the Tourist Traps. Real NYC Hidden Gems.',
+    metaDescription: 'Discover where real New Yorkers actually go. Hidden gems, local tips, and honest recommendations.',
+    city: 'NYC',
+  },
+  'hiddencitygems.com': {
+    name: 'Hidden City Gems',
+    url: 'https://hiddencitygems.com',
+    tagline: 'Skip the tourist traps.',
+    heroTitle: 'Skip the tourist traps.\nDiscover where locals actually go.',
+    heroSubtitle: 'Real recommendations from real locals. Hidden gems, honest tips, zero BS.',
+    metaTitle: 'Hidden City Gems — Skip the Tourist Traps. Real Local Recommendations.',
+    metaDescription: 'Discover hidden gems in cities around the world. Real recommendations from locals, not algorithms.',
+    city: null,
+  },
+  'experiences.miami': {
+    name: 'Experiences Miami',
+    url: 'https://experiences.miami',
+    tagline: 'The real Miami.',
+    heroTitle: 'Skip the tourist traps.\nHere\'s where real Miami locals actually go.',
+    heroSubtitle: 'Curated by locals, not algorithms. Hidden gems, honest tips, zero BS.',
+    metaTitle: 'Experiences Miami — Skip the Tourist Traps. Real Miami Hidden Gems.',
+    metaDescription: 'Discover where real Miami locals actually go. Hidden gems, local tips, and honest recommendations.',
+    city: 'Miami',
+  },
+};
+
+const DEFAULT_SITE = SITES['findernyc.com'];
+
+export function getSiteContext(hostname: string): SiteContext {
+  // Strip www. and port
+  const clean = hostname.replace(/^www\./, '').split(':')[0];
+  return SITES[clean] ?? DEFAULT_SITE;
+}
+
 export function escapeHtml(value: string): string {
   return value
     .replaceAll('&', '&amp;')
@@ -25,8 +78,9 @@ const NAV_LINKS: NavLink[] = [
   { href: '/about', label: 'About' },
 ];
 
-export function navHtml(options?: { activePath?: string }): string {
+export function navHtml(options?: { activePath?: string; site?: SiteContext }): string {
   const activePath = options?.activePath;
+  const siteName = options?.site?.name ?? SITE_NAME;
 
   const desktopLinks = NAV_LINKS.map(
     (link) =>
@@ -41,16 +95,16 @@ export function navHtml(options?: { activePath?: string }): string {
   return `<a href="#main-content" class="skip-link">Skip to main content</a>
   <header class="site-header">
     <nav class="nav-desktop" aria-label="Desktop navigation">
-      <a href="/" class="nav-logo" aria-label="${SITE_NAME} home">
-        <span class="logo-text">${SITE_NAME}</span>
+      <a href="/" class="nav-logo" aria-label="${escapeHtml(siteName)} home">
+        <span class="logo-text">${escapeHtml(siteName)}</span>
       </a>
       <ul class="nav-links" role="list">
         ${desktopLinks}
       </ul>
     </nav>
     <nav class="nav-mobile" aria-label="Mobile navigation">
-      <a href="/" class="nav-logo" aria-label="${SITE_NAME} home">
-        <span class="logo-text">${SITE_NAME}</span>
+      <a href="/" class="nav-logo" aria-label="${escapeHtml(siteName)} home">
+        <span class="logo-text">${escapeHtml(siteName)}</span>
       </a>
       <button
         class="hamburger tap-target"
@@ -84,19 +138,21 @@ export function navHtml(options?: { activePath?: string }): string {
   </header>`;
 }
 
-export function footerHtml(): string {
+export function footerHtml(site?: SiteContext): string {
+  const siteName = site?.name ?? SITE_NAME;
+  const tagline = site?.tagline ?? 'Skip the tourist traps.';
   return `<footer class="site-footer">
     <div class="container">
       <div class="footer-brand">
-        <span class="footer-name">${SITE_NAME}</span>
-        <span class="footer-tagline">Skip the tourist traps.</span>
+        <span class="footer-name">${escapeHtml(siteName)}</span>
+        <span class="footer-tagline">${escapeHtml(tagline)}</span>
       </div>
       <nav class="footer-links" aria-label="Footer navigation">
         <a href="/about">About</a>
         <a href="/privacy">Privacy</a>
         <a href="/terms">Terms</a>
       </nav>
-      <p class="footer-copyright">&copy; 2026 ${SITE_NAME}. All rights reserved.</p>
+      <p class="footer-copyright">&copy; 2026 ${escapeHtml(siteName)}. All rights reserved.</p>
     </div>
   </footer>`;
 }
@@ -138,11 +194,15 @@ export type PageMeta = {
   path: string;
   noindex?: boolean;
   structuredData?: unknown[];
+  site?: SiteContext;
 };
 
 export function pageShell(meta: PageMeta, bodyHtml: string): string {
-  const canonical = `${SITE_URL}${meta.path}`;
-  const ogImage = `${SITE_URL}/images/og-image.svg`;
+  const site = meta.site;
+  const siteUrl = site?.url ?? SITE_URL;
+  const siteName = site?.name ?? SITE_NAME;
+  const canonical = `${siteUrl}${meta.path}`;
+  const ogImage = `${siteUrl}/images/og-image.svg`;
   const robots = meta.noindex ? 'noindex,nofollow' : 'index,follow';
   const structuredDataScripts = (meta.structuredData ?? [])
     .map((payload) => `<script type="application/ld+json">${JSON.stringify(payload)}</script>`)
@@ -158,7 +218,7 @@ export function pageShell(meta: PageMeta, bodyHtml: string): string {
   <meta name="robots" content="${robots}">
   <link rel="canonical" href="${canonical}">
   <meta property="og:type" content="website">
-  <meta property="og:site_name" content="${SITE_NAME}">
+  <meta property="og:site_name" content="${escapeHtml(siteName)}">
   <meta property="og:title" content="${escapeHtml(meta.title)}">
   <meta property="og:description" content="${escapeHtml(meta.description)}">
   <meta property="og:url" content="${canonical}">
@@ -173,11 +233,11 @@ export function pageShell(meta: PageMeta, bodyHtml: string): string {
   ${structuredDataScripts}
 </head>
 <body>
-  ${navHtml({ activePath: meta.path })}
+  ${navHtml({ activePath: meta.path, site })}
   <main id="main-content">
     ${bodyHtml}
   </main>
-  ${footerHtml()}
+  ${footerHtml(site)}
   <script>${mobileNavScript()}</script>
   <script src="/js/main.js" defer></script>
 </body>
