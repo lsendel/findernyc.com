@@ -119,7 +119,11 @@
         try {
           const res = await fetch(`/api/search/suggest?q=${encodeURIComponent(q)}`);
           if (!res.ok) { hideDropdown(); return; }
-          const data = await res.json();
+          const data = await res.json() as {
+            spots: Array<{ name: string; slug: string; neighborhood: string; category: string }>;
+            guides: Array<{ title: string; slug: string; type: string }>;
+            neighborhoods: Array<{ name: string; slug: string; borough: string }>;
+          };
 
           // Clear previous results
           clearDropdown();

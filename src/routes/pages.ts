@@ -18,7 +18,7 @@ pagesRouter.get('/', async (c) => {
     db
       .prepare(
         `SELECT s.slug, s.title, s.neighborhood, s.category, s.one_liner, s.photo_url,
-                (SELECT ROUND(AVG(r.rating), 1) FROM ratings r WHERE r.spot_id = s.id) AS avg_rating,
+                (SELECT ROUND(AVG(r.score), 1) FROM ratings r WHERE r.spot_id = s.id) AS avg_rating,
                 (SELECT COUNT(*) FROM ratings r WHERE r.spot_id = s.id) AS rating_count
          FROM spots s
          WHERE s.published = 1
@@ -56,7 +56,7 @@ pagesRouter.get('/spots/:slug', async (c) => {
   const spot = await db
     .prepare(
       `SELECT s.*,
-              (SELECT ROUND(AVG(r.rating), 1) FROM ratings r WHERE r.spot_id = s.id) AS avg_rating,
+              (SELECT ROUND(AVG(r.score), 1) FROM ratings r WHERE r.spot_id = s.id) AS avg_rating,
               (SELECT COUNT(*) FROM ratings r WHERE r.spot_id = s.id) AS rating_count
        FROM spots s
        WHERE s.slug = ? AND s.published = 1`,
@@ -70,7 +70,7 @@ pagesRouter.get('/spots/:slug', async (c) => {
     db
       .prepare(
         `SELECT text, author_name, author_area
-         FROM tips
+         FROM spot_tips
          WHERE spot_id = ? AND approved = 1
          ORDER BY created_at DESC
          LIMIT 10`,
@@ -80,7 +80,7 @@ pagesRouter.get('/spots/:slug', async (c) => {
     db
       .prepare(
         `SELECT s.slug, s.title, s.neighborhood, s.category, s.one_liner,
-                (SELECT ROUND(AVG(r.rating), 1) FROM ratings r WHERE r.spot_id = s.id) AS avg_rating,
+                (SELECT ROUND(AVG(r.score), 1) FROM ratings r WHERE r.spot_id = s.id) AS avg_rating,
                 (SELECT COUNT(*) FROM ratings r WHERE r.spot_id = s.id) AS rating_count
          FROM spots s
          WHERE s.neighborhood = ? AND s.id != ? AND s.published = 1
@@ -104,6 +104,7 @@ pagesRouter.get('/spots/:slug', async (c) => {
 /* ------------------------------------------------------------------ */
 
 pagesRouter.get('/search', async (c) => {
+  try {
   const db = c.env.DB;
   const q = c.req.query('q') ?? '';
   const category = c.req.query('category') ?? '';
@@ -117,8 +118,8 @@ pagesRouter.get('/search', async (c) => {
   let orderBy: string;
 
   if (q) {
-    fromClause = 'spots_fts fts JOIN spots s ON s.rowid = fts.rowid';
-    conditions.push('fts MATCH ?');
+    fromClause = 'spots_fts JOIN spots s ON s.id = spots_fts.rowid';
+    conditions.push('spots_fts MATCH ?');
     bindings.push(q + '*');
   } else {
     fromClause = 'spots s';
@@ -147,13 +148,13 @@ pagesRouter.get('/search', async (c) => {
       orderBy = 's.created_at DESC';
       break;
     default:
-      orderBy = q ? 'fts.rank' : 'avg_rating DESC NULLS LAST';
+      orderBy = q ? 'spots_fts.rank' : 'avg_rating DESC NULLS LAST';
   }
 
   const spotsQuery = `
     SELECT s.slug, s.title, s.name, s.neighborhood, s.borough, s.category,
            s.one_liner, s.price_level, s.photo_url, s.subway,
-           (SELECT ROUND(AVG(r.rating), 1) FROM ratings r WHERE r.spot_id = s.id) AS avg_rating,
+           (SELECT ROUND(AVG(r.score), 1) FROM ratings r WHERE r.spot_id = s.id) AS avg_rating,
            (SELECT COUNT(*) FROM ratings r WHERE r.spot_id = s.id) AS rating_count
     FROM ${fromClause}
     WHERE ${whereClause}
@@ -204,6 +205,10 @@ pagesRouter.get('/search', async (c) => {
       total,
     }),
   );
+  } catch (err) {
+    console.error('Search page error:', err);
+    return c.text(`Search error: ${err}`, 500);
+  }
 });
 
 export { pagesRouter };

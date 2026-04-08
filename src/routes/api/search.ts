@@ -25,7 +25,7 @@ router.get('/', async (c) => {
           (SELECT COUNT(*) FROM ratings r WHERE r.spot_id = s.id) as rating_count,
           fts.rank
         FROM spots_fts fts
-        JOIN spots s ON s.rowid = fts.rowid
+        JOIN spots s ON s.id = fts.rowid
         WHERE spots_fts MATCH ?
           AND s.published = 1
       `;
@@ -77,7 +77,7 @@ router.get('/', async (c) => {
       countSql = `
         SELECT COUNT(*) as total
         FROM spots_fts fts
-        JOIN spots s ON s.rowid = fts.rowid
+        JOIN spots s ON s.id = fts.rowid
         WHERE spots_fts MATCH ?
           AND s.published = 1
       `;
@@ -147,7 +147,7 @@ router.get('/suggest', async (c) => {
         .prepare(
           `SELECT s.name, s.slug, s.neighborhood, s.category
            FROM spots_fts fts
-           JOIN spots s ON s.rowid = fts.rowid
+           JOIN spots s ON s.id = fts.rowid
            WHERE spots_fts MATCH ? AND s.published = 1
            ORDER BY fts.rank
            LIMIT 5`
