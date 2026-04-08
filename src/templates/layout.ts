@@ -44,6 +44,16 @@ const SITES: Record<string, SiteContext> = {
     metaDescription: 'Discover where real Miami locals actually go. Hidden gems, local tips, and honest recommendations.',
     city: 'Miami',
   },
+  'mmeexx.com': {
+    name: 'MMEEXX',
+    url: 'https://mmeexx.com',
+    tagline: 'Lo que los locales no te cuentan.',
+    heroTitle: 'Olvídate de las trampas para turistas.\nDescubre adónde van los locales de verdad.',
+    heroSubtitle: 'Recomendado por locales, no por algoritmos. Joyas escondidas, tips honestos, cero BS.',
+    metaTitle: 'MMEEXX — Joyas Escondidas en México. Recomendaciones Locales.',
+    metaDescription: 'Descubre adónde van los locales de verdad en México. Joyas escondidas, tips honestos y recomendaciones reales.',
+    city: 'Mexico',
+  },
 };
 
 const DEFAULT_SITE = SITES['findernyc.com'];

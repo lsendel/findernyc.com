@@ -9,6 +9,8 @@ routes = [
   { pattern = "www.hiddencitygems.com", custom_domain = true },
   { pattern = "experiences.miami", custom_domain = true },
   { pattern = "www.experiences.miami", custom_domain = true },
+  { pattern = "mmeexx.com", custom_domain = true },
+  { pattern = "www.mmeexx.com", custom_domain = true },
 ]
 
 [[d1_databases]]
