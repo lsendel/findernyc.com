@@ -1,36 +1,30 @@
 import { Hono } from 'hono';
+import { createFinderNycServices } from '../../application/service-factory';
+import { parseTipInput, submitSpotTip } from '../../application/feedback/use-cases';
 
-type Env = { Bindings: { DB: D1Database } };
+type Env = { Bindings: { DB?: D1Database } };
 const router = new Hono<Env>();
 
 router.post('/', async (c) => {
   const db = c.env.DB;
+  if (!db) {
+    return c.json({ success: false, error: 'database_unavailable' }, 503);
+  }
 
-  let body: { spot_id?: number; text?: string; author_name?: string; author_area?: string };
+  let body: unknown;
   try {
     body = await c.req.json();
   } catch {
     return c.json({ success: false, error: 'invalid_json' }, 400);
   }
 
-  const { spot_id, author_name, author_area } = body;
-  const text = typeof body.text === 'string' ? body.text.trim() : '';
-
-  if (!spot_id || typeof spot_id !== 'number') {
-    return c.json({ success: false, error: 'spot_id is required' }, 400);
-  }
-  if (text.length < 10 || text.length > 500) {
-    return c.json({ success: false, error: 'text must be between 10 and 500 characters' }, 400);
+  const parsed = parseTipInput(body);
+  if (!parsed.ok) {
+    return c.json({ success: false, error: parsed.error }, 400);
   }
 
   try {
-    await db
-      .prepare(
-        `INSERT INTO spot_tips (spot_id, text, author_name, author_area, approved) VALUES (?, ?, ?, ?, 1)`
-      )
-      .bind(spot_id, text, author_name ?? null, author_area ?? null)
-      .run();
-
+    await submitSpotTip(createFinderNycServices(db).feedback, parsed.value);
     return c.json({ success: true });
   } catch (err) {
     console.error('Tip error:', err);

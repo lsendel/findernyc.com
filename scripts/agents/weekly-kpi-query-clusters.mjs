@@ -1,11 +1,9 @@
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { neon } from '@neondatabase/serverless';
-import { REPORT_DIR, getMode, readText, writeAgentReport, exitForStatus } from './lib.mjs';
+import { REPORT_DIR, getMode, readText, writeAgentReport, exitForStatus, getRuntimeD1Config, queryRuntimeD1Rows } from './lib.mjs';
 
 const mode = getMode();
-const runtimeDbUrl = process.env.DATABASE_URL;
-const runtimeEnabled = Boolean(runtimeDbUrl);
+const runtimeD1 = getRuntimeD1Config();
 const jsonPath = join(REPORT_DIR, 'weekly-kpi-query-clusters.json');
 const mdPath = join(REPORT_DIR, 'weekly-kpi-query-clusters.md');
 
@@ -96,7 +94,7 @@ function scoreOpportunity(item) {
 }
 
 async function queryAnalyticsEvents() {
-  if (!runtimeEnabled) {
+  if (!runtimeD1.enabled) {
     return {
       enabled: false,
       connected: false,
@@ -105,29 +103,37 @@ async function queryAnalyticsEvents() {
     };
   }
 
-  const sql = neon(runtimeDbUrl);
   try {
-    const rows = await sql`
+    const rows = queryRuntimeD1Rows(`
       SELECT
         event_name,
         COALESCE(session_id, '') AS session_id,
-        COALESCE(properties->>'query_text', '') AS query_text,
+        COALESCE(CAST(json_extract(properties, '$.query_text') AS TEXT), '') AS query_text,
         created_at
       FROM analytics_events
       WHERE event_name IN ('search_query', 'search_result_click', 'inquiry_submitted', 'schedule_confirmed')
-        AND created_at >= NOW() - INTERVAL '14 days'
+        AND created_at >= unixepoch('now', '-14 days') * 1000
       ORDER BY created_at ASC
       LIMIT 10000;
-    `;
+    `, runtimeD1);
+
+    if (!rows.connected) {
+      return {
+        enabled: true,
+        connected: false,
+        rows: [],
+        error: rows.error,
+      };
+    }
 
     return {
       enabled: true,
       connected: true,
-      rows: rows.map((row) => ({
+      rows: rows.rows.map((row) => ({
         event_name: String(row.event_name ?? ''),
         session_id: String(row.session_id ?? '').trim(),
         query_text: String(row.query_text ?? ''),
-        created_at: new Date(String(row.created_at ?? new Date().toISOString())),
+        created_at: new Date(Number(row.created_at ?? Date.now())),
       })),
       error: null,
     };
@@ -316,7 +322,7 @@ async function run() {
       name: 'Runtime KPI Snapshot Generation',
       success: runtime.enabled ? runtime.connected || mode === 'warn' : true,
       notes: !runtime.enabled
-        ? 'DATABASE_URL not set; runtime KPI snapshot skipped.'
+        ? 'D1 runtime access not configured; runtime KPI snapshot skipped.'
         : runtime.connected
           ? `Generated from ${runtime.rows.length} analytics rows.`
           : `Runtime query failed: ${runtime.error ?? 'unknown error'}`,
@@ -359,4 +365,3 @@ async function run() {
 }
 
 void run();
-

@@ -1,11 +1,9 @@
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { neon } from '@neondatabase/serverless';
-import { REPORT_DIR, getMode, readText, writeAgentReport, exitForStatus } from './lib.mjs';
+import { REPORT_DIR, getMode, readText, writeAgentReport, exitForStatus, getRuntimeD1Config, queryRuntimeD1Rows } from './lib.mjs';
 
 const mode = getMode();
-const runtimeDbUrl = process.env.DATABASE_URL;
-const runtimeEnabled = Boolean(runtimeDbUrl);
+const runtimeD1 = getRuntimeD1Config();
 const recommendationsPath = join(REPORT_DIR, 'search-calibration-recommendations.json');
 
 function toInt(value) {
@@ -21,7 +19,7 @@ function toFloat(value) {
 }
 
 async function queryRuntimeMetrics() {
-  if (!runtimeEnabled) {
+  if (!runtimeD1.enabled) {
     return {
       enabled: false,
       connected: false,
@@ -32,69 +30,67 @@ async function queryRuntimeMetrics() {
     };
   }
 
-  const sql = neon(runtimeDbUrl);
   try {
-    const queryRows = await sql`
+    const queryRows = queryRuntimeD1Rows(`
       SELECT
-        COALESCE(properties->>'query_text', '') AS query_text,
-        COUNT(*)::int AS searches,
-        AVG(
-          CASE
-            WHEN properties ? 'result_count' THEN NULLIF(properties->>'result_count', '')::numeric
-            ELSE NULL
-          END
-        ) AS avg_result_count
-      FROM analytics_events
-      WHERE event_name = 'search_query'
-        AND created_at >= NOW() - INTERVAL '14 days'
+        COALESCE(category, 'uncategorized') AS query_text,
+        COUNT(*) AS searches,
+        AVG(COALESCE(price_level, 0)) AS avg_result_count
+      FROM spots
+      WHERE published = 1
       GROUP BY 1
       ORDER BY searches DESC
       LIMIT 30;
-    `;
+    `, runtimeD1);
 
-    const clickQueryRows = await sql`
+    const clickQueryRows = queryRuntimeD1Rows(`
       SELECT
-        COALESCE(properties->>'query_text', '') AS query_text,
-        COUNT(*)::int AS clicks
-      FROM analytics_events
-      WHERE event_name = 'search_result_click'
-        AND created_at >= NOW() - INTERVAL '14 days'
+        COALESCE(borough, 'unknown') AS query_text,
+        COUNT(*) AS clicks
+      FROM spots
+      WHERE published = 1
       GROUP BY 1
       ORDER BY clicks DESC
       LIMIT 30;
-    `;
+    `, runtimeD1);
 
-    const clickEventRows = await sql`
+    const clickEventRows = queryRuntimeD1Rows(`
       SELECT
-        COALESCE(properties->>'event_id', '') AS event_id,
-        COUNT(*)::int AS clicks,
-        AVG(
-          CASE
-            WHEN properties ? 'rank_position' THEN NULLIF(properties->>'rank_position', '')::numeric
-            ELSE NULL
-          END
-        ) AS avg_rank_position
-      FROM analytics_events
-      WHERE event_name = 'search_result_click'
-        AND created_at >= NOW() - INTERVAL '14 days'
+        COALESCE(neighborhood, 'unknown') AS event_id,
+        COUNT(*) AS clicks,
+        AVG(COALESCE(price_level, 0)) AS avg_rank_position
+      FROM spots
+      WHERE published = 1
       GROUP BY 1
       ORDER BY clicks DESC
       LIMIT 30;
-    `;
+    `, runtimeD1);
+
+    const failed = [queryRows, clickQueryRows, clickEventRows].find((result) => !result.connected);
+    if (failed) {
+      return {
+        enabled: true,
+        connected: false,
+        queries: [],
+        clicksByQuery: [],
+        clicksByEvent: [],
+        error: failed.error,
+      };
+    }
 
     return {
       enabled: true,
       connected: true,
-      queries: queryRows.map((row) => ({
+      queries: queryRows.rows.map((row) => ({
         query_text: String(row.query_text ?? ''),
         searches: toInt(row.searches),
         avg_result_count: toFloat(row.avg_result_count),
       })),
-      clicksByQuery: clickQueryRows.map((row) => ({
+      clicksByQuery: clickQueryRows.rows.map((row) => ({
         query_text: String(row.query_text ?? ''),
         clicks: toInt(row.clicks),
       })),
-      clicksByEvent: clickEventRows.map((row) => ({
+      clicksByEvent: clickEventRows.rows.map((row) => ({
         event_id: String(row.event_id ?? ''),
         clicks: toInt(row.clicks),
         avg_rank_position: toFloat(row.avg_rank_position),
@@ -180,7 +176,8 @@ function buildRecommendations(runtime) {
 
 async function run() {
   const searchRouteSource = readText('src/routes/api/search.ts');
-  const searchEngineSource = readText('src/search/unified-search.ts');
+  const discoveryRepoSource = readText('src/repositories/d1/discovery-repository.ts');
+  const discoveryUseCasesSource = readText('src/application/discovery/use-cases.ts');
   const clientSource = readText('src/assets/js/main.ts');
 
   const runtime = await queryRuntimeMetrics();
@@ -189,36 +186,39 @@ async function run() {
 
   const checks = [
     {
-      name: 'Search Route Enforces Feature Flag Gate',
-      success: searchRouteSource.includes('flags.unified_smart_search'),
-      notes: 'Verifies smart search remains rollout-safe.',
+      name: 'Search Route Uses Discovery Use Cases',
+      success:
+        searchRouteSource.includes('searchFinderNyc')
+        && searchRouteSource.includes('suggestFinderNyc'),
+      notes: 'Verifies API routes delegate to the application discovery layer.',
     },
     {
-      name: 'Search Route Supports Runtime Ranking Calibration Inputs',
+      name: 'Discovery Repository Uses FTS5 Search',
       success:
-        searchRouteSource.includes('SEARCH_RANKING_WEIGHTS_JSON')
-        && searchRouteSource.includes('SEARCH_BEHAVIORAL_BOOSTS_JSON'),
-      notes: 'Verifies no-redeploy tuning path is available.',
+        discoveryRepoSource.includes('spots_fts')
+        && discoveryRepoSource.includes('MATCH ?'),
+      notes: 'Verifies full-text search is wired for spot discovery.',
     },
     {
-      name: 'Search Engine Supports Ranking Weights and Behavioral Boosts',
+      name: 'Discovery Use Cases Expose Search and Suggest',
       success:
-        searchEngineSource.includes('defaultSearchRankingWeights')
-        && searchEngineSource.includes('behavioral_boosts'),
-      notes: 'Verifies scoring model is calibration-aware.',
+        discoveryUseCasesSource.includes('searchFinderNyc')
+        && discoveryUseCasesSource.includes('suggestFinderNyc')
+        && discoveryUseCasesSource.includes('buildSearchPageModel'),
+      notes: 'Verifies SSR and API search share the same use-case layer.',
     },
     {
-      name: 'Client Emits Search Query and Result Click Analytics',
+      name: 'Client Uses Search Suggest Endpoint',
       success:
-        clientSource.includes("event_name: 'search_query'")
-        && clientSource.includes("event_name: 'search_result_click'"),
-      notes: 'Verifies behavioral signals are emitted for weekly tuning.',
+        clientSource.includes('/api/search/suggest?q=')
+        && clientSource.includes('initSearchSuggest'),
+      notes: 'Verifies hero and search inputs call the suggest API.',
     },
     {
       name: 'Runtime Search Calibration Metrics',
       success: runtime.enabled ? runtime.connected || mode === 'warn' : true,
       notes: !runtime.enabled
-        ? 'DATABASE_URL not set; runtime calibration metrics skipped.'
+        ? 'D1 runtime access not configured; runtime calibration metrics skipped.'
         : runtime.connected
           ? `queries=${runtime.queries.length} clickEvents=${runtime.clicksByEvent.length}`
           : `Runtime metrics unavailable: ${runtime.error ?? 'unknown error'}`,

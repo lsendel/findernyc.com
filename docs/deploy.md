@@ -2,7 +2,7 @@
 
 ## Overview
 
-FinderNYC runs as a **Cloudflare Worker** with static assets, backed by a **Neon PostgreSQL** database. The site is live at:
+FinderNYC runs as a **Cloudflare Worker** with static assets, backed by a **Cloudflare D1** database for the Worker runtime. The site is live at:
 
 - **Production**: https://findernyc.com (and www.findernyc.com)
 - **Workers URL**: https://local-event-discovery.luis-diaz-s.workers.dev
@@ -17,7 +17,7 @@ GitHub (lsendel/findernyc.com)
             ├─ ui-regression (visual + a11y, advisory)
             └─ deploy (wrangler deploy → Cloudflare Workers)
                   └─ findernyc.com (custom domain)
-                        └─ DATABASE_URL → Neon PostgreSQL
+                        └─ D1 binding (`DB`) → findernyc-production
 ```
 
 ## Cloudflare
@@ -64,62 +64,47 @@ routes = [
 ]
 ```
 
-### Worker Secrets
-
-Secrets are set via wrangler CLI (not in wrangler.toml):
-
-```sh
-# Set the database connection string
-npx wrangler secret put DATABASE_URL
-# Paste the Neon connection string when prompted
-```
-
-To list current secrets:
-
-```sh
-npx wrangler secret list
-```
-
-**Currently configured secrets**: None yet. `DATABASE_URL` needs to be set (see Database section below).
-
 ## Database
 
-### Provider: Neon PostgreSQL
+### Provider: Cloudflare D1
 
-- **Neon Organization**: Luis (`org-shiny-pond-29352049`)
-- **Neon Console**: https://console.neon.tech
+- **Production DB**: `findernyc-production`
+- **Production ID**: `3b28bfa8-4eb9-4c1e-a342-a5557fb79344`
+- **Preview DB**: `findernyc-preview`
+- **Preview ID**: `0400aca1-b8b3-46d8-9d19-3f8d1efaf16d`
+- **Region**: `ENAM`
 
-There is **no existing Neon project** for findernyc yet. A project needs to be created.
+### Current Binding
 
-### Creating the Database
+Defined in `wrangler.toml`:
 
-1. Create a new Neon project (recommended region: `aws-us-east-1` for low latency to Cloudflare edge):
+```toml
+[[d1_databases]]
+binding = "DB"
+database_name = "findernyc-production"
+database_id = "3b28bfa8-4eb9-4c1e-a342-a5557fb79344"
+preview_database_id = "0400aca1-b8b3-46d8-9d19-3f8d1efaf16d"
+migrations_dir = "src/db/migrations"
+```
+
+### Migrations
+
+Generate a new migration from the Drizzle schema:
 
 ```sh
-# Via Neon MCP or console
-# Project name: findernyc-production
-# Region: aws-us-east-1
-# PostgreSQL version: 17
+npm run db:generate
 ```
 
-2. Get the connection string from the Neon dashboard. It looks like:
-
-```
-postgresql://<user>:<password>@<endpoint>.neon.tech/neondb?sslmode=require
-```
-
-3. Set it as a Cloudflare Worker secret:
+Apply migrations to the production D1 database:
 
 ```sh
-npx wrangler secret put DATABASE_URL
-# Paste the connection string
+npx wrangler d1 migrations apply DB --remote
 ```
 
-4. Run database migrations:
+Apply migrations to the preview D1 database:
 
 ```sh
-DATABASE_URL="<connection-string>" npm run db:generate
-DATABASE_URL="<connection-string>" npm run db:migrate
+npx wrangler d1 migrations apply DB --remote --preview
 ```
 
 ### Schema
@@ -136,15 +121,15 @@ Defined in `src/db/schema.ts`. Tables:
 
 ### ORM & Migrations
 
-- **ORM**: Drizzle ORM with `@neondatabase/serverless` driver
+- **ORM**: Drizzle ORM with the D1 driver
 - **Config**: `drizzle.config.ts`
 - **Migrations dir**: `src/db/migrations/`
 - **Generate migrations**: `npm run db:generate`
-- **Apply migrations**: `npm run db:migrate`
+- **Apply migrations**: `npx wrangler d1 migrations apply DB --remote`
 
 ### Database Client
 
-`src/db/client.ts` — creates a Drizzle instance from a Neon serverless connection. All route handlers access it via `c.env.DATABASE_URL`. The app gracefully degrades if `DATABASE_URL` is not set (returns mock/fallback responses).
+`src/db/client.ts` — creates a Drizzle instance from the Worker D1 binding. All route handlers access it via `c.env.DB`. The app gracefully degrades if the binding is not present (returns mock/fallback responses).
 
 ## CI/CD Pipeline
 
@@ -192,6 +177,10 @@ These are set in GitHub repo settings → Secrets and variables → Actions.
 
 **Note**: CI deploy is optional. You can always deploy manually with `npx wrangler deploy` using local OAuth credentials.
 
+### Remaining Cutover Work
+
+The Worker runtime, migrations, and CI-side agent queries are on D1. No provisioned Postgres source was found in the repo config, Worker secrets, or local Cloudflare state, so the repo now treats D1 as the only supported database path. If an archival export ever appears later, the generic D1 import scripts can still backfill it. The tracked checklist lives in `docs/execution/d1-migration-checklist.md`.
+
 ## Quick Reference
 
 ### Deploy to production (manual)
@@ -212,6 +201,14 @@ npm run typecheck && npm test
 npm run agent:all
 ```
 
+### Import archived data into D1
+
+```sh
+npm run db:build-import:d1
+npm run db:import:d1
+npm run db:verify:d1
+```
+
 ### Check release readiness
 
 ```sh
@@ -229,6 +226,12 @@ npx wrangler tail
 ```sh
 npm run dev
 # Runs at http://localhost:8787
+```
+
+Generate Worker binding types after config changes:
+
+```sh
+npx wrangler types worker-configuration.d.ts
 ```
 
 ### Build client-side JS
@@ -258,12 +261,16 @@ gh run view <run-id> --repo lsendel/findernyc.com
 gh run download <run-id> --name release-agent-reports --dir /tmp/reports
 ```
 
-### Worker returns errors about DATABASE_URL
+### Worker cannot see the D1 binding
 
-The database secret isn't set. Run:
+Validate the binding and preview database IDs:
 
 ```sh
-npx wrangler secret put DATABASE_URL
+npx wrangler deploy --dry-run
 ```
 
-The app works without a database (returns fallback responses) but lead capture, waitlist, analytics, and saved searches require it.
+The output should list:
+
+```txt
+DB: findernyc-production (...), Preview: (0400aca1-b8b3-46d8-9d19-3f8d1efaf16d)
+```

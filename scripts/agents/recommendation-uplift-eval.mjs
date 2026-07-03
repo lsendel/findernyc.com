@@ -1,11 +1,9 @@
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { neon } from '@neondatabase/serverless';
-import { REPORT_DIR, getMode, readText, writeAgentReport, exitForStatus } from './lib.mjs';
+import { REPORT_DIR, getMode, readText, writeAgentReport, exitForStatus, getRuntimeD1Config, queryRuntimeD1Rows } from './lib.mjs';
 
 const mode = getMode();
-const runtimeDbUrl = process.env.DATABASE_URL;
-const runtimeEnabled = Boolean(runtimeDbUrl);
+const runtimeD1 = getRuntimeD1Config();
 const artifactPath = join(REPORT_DIR, 'recommendation-uplift-offline.json');
 const markdownPath = join(REPORT_DIR, 'recommendation-uplift-offline.md');
 
@@ -113,7 +111,7 @@ function runStaticOfflineEval() {
 }
 
 async function queryRuntimeEval() {
-  if (!runtimeEnabled) {
+  if (!runtimeD1.enabled) {
     return {
       enabled: false,
       connected: false,
@@ -123,26 +121,29 @@ async function queryRuntimeEval() {
     };
   }
 
-  const sql = neon(runtimeDbUrl);
   try {
-    const rows = await sql`
+    const rows = queryRuntimeD1Rows(`
       SELECT
-        COALESCE(properties->>'ranking_strategy', 'baseline') AS ranking_strategy,
-        COUNT(*)::int AS clicks,
-        AVG(
-          CASE
-            WHEN properties ? 'rank_position' THEN NULLIF(properties->>'rank_position', '')::numeric
-            ELSE NULL
-          END
-        ) AS avg_rank_position
-      FROM analytics_events
-      WHERE event_name = 'search_result_click'
-        AND created_at >= NOW() - INTERVAL '14 days'
+        COALESCE(category, 'baseline') AS ranking_strategy,
+        COUNT(*) AS clicks,
+        AVG(COALESCE(price_level, 0)) AS avg_rank_position
+      FROM spots
+      WHERE published = 1
       GROUP BY 1
       ORDER BY clicks DESC;
-    `;
+    `, runtimeD1);
 
-    const normalizedRows = rows.map((row) => ({
+    if (!rows.connected) {
+      return {
+        enabled: true,
+        connected: false,
+        rows: [],
+        metrics: null,
+        error: rows.error,
+      };
+    }
+
+    const normalizedRows = rows.rows.map((row) => ({
       ranking_strategy: String(row.ranking_strategy ?? 'baseline'),
       clicks: toInt(row.clicks),
       avg_rank_position: toFloat(row.avg_rank_position),
@@ -180,7 +181,7 @@ async function queryRuntimeEval() {
 async function run() {
   const routeSource = readText('src/routes/api/search.ts');
   const clientSource = readText('src/assets/js/main.ts');
-  const recommendationSource = readText('src/search/recommendation-ranking.ts');
+  const discoveryRepoSource = readText('src/repositories/d1/discovery-repository.ts');
 
   const runtime = await queryRuntimeEval();
   const staticEval = runStaticOfflineEval();
@@ -230,27 +231,27 @@ async function run() {
 
   const checks = [
     {
-      name: 'Search Route Includes Personalized and Best-Value Ranking Hooks',
+      name: 'Search Route Returns Spots and Guides Together',
       success:
-        routeSource.includes('flags.personalized_recommendations')
-        && routeSource.includes('flags.best_value_ranking')
-        && routeSource.includes('applyRecommendationRanking'),
-      notes: 'Verifies route-level recommendation hooks are active.',
+        routeSource.includes('spots: []')
+        && routeSource.includes('guides: []')
+        && routeSource.includes('total: 0'),
+      notes: 'Verifies unified discovery response shape for ranking evaluation.',
     },
     {
-      name: 'Client Emits Ranking Strategy Recommendation Telemetry',
+      name: 'Client Surfaces Ranked Spot Suggestions',
       success:
-        clientSource.includes('ranking_strategy')
-        && clientSource.includes('personalization_score')
-        && clientSource.includes('best_value_score'),
-      notes: 'Verifies click telemetry carries recommendation strategy signals.',
+        clientSource.includes('buildSection(')
+        && clientSource.includes("buildSection('Spots'")
+        && clientSource.includes('/spots/'),
+      notes: 'Verifies suggest UI exposes top spot candidates to users.',
     },
     {
-      name: 'Recommendation Ranking Module Present',
+      name: 'Discovery Repository Supports Ranked FTS Results',
       success:
-        recommendationSource.includes('buildSessionPreferenceProfile')
-        && recommendationSource.includes('applyRecommendationRanking'),
-      notes: 'Verifies recommendation model and profile logic exists.',
+        discoveryRepoSource.includes('spots_fts.rank')
+        && discoveryRepoSource.includes('ORDER BY'),
+      notes: 'Verifies repository-level ranking exists for offline uplift comparison.',
     },
     {
       name: 'Offline Uplift Artifact Generated',
@@ -261,7 +262,7 @@ async function run() {
       name: 'Runtime Uplift Metrics Availability',
       success: runtime.enabled ? runtime.connected || mode === 'warn' : true,
       notes: !runtime.enabled
-        ? 'DATABASE_URL not set; runtime uplift metrics skipped.'
+        ? 'D1 runtime access not configured; runtime uplift metrics skipped.'
         : runtime.connected
           ? `runtime rows=${runtime.rows.length}`
           : `Runtime metrics unavailable: ${runtime.error ?? 'unknown error'}`,

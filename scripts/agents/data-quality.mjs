@@ -1,14 +1,14 @@
-import { neon } from '@neondatabase/serverless';
-import { getMode, readText, writeAgentReport, exitForStatus } from './lib.mjs';
+import { getMode, readText, writeAgentReport, exitForStatus, getRuntimeD1Config, queryRuntimeD1Rows } from './lib.mjs';
 
 const mode = getMode();
 
 const schemaSource = readText('src/db/schema.ts');
-const leadsRouteSource = readText('src/routes/api/leads.ts');
-const waitlistRouteSource = readText('src/routes/api/waitlist.ts');
+const ratingsRouteSource = readText('src/routes/api/ratings.ts');
+const tipsRouteSource = readText('src/routes/api/tips.ts');
+const newsletterRouteSource = readText('src/routes/api/newsletter.ts');
+const feedbackServiceSource = readText('src/domain/feedback/service.ts');
 
-const runtimeDbUrl = process.env.DATABASE_URL;
-const runtimeEnabled = Boolean(runtimeDbUrl);
+const runtimeD1 = getRuntimeD1Config();
 
 function toInt(value) {
   const num = Number(value);
@@ -17,7 +17,7 @@ function toInt(value) {
 }
 
 async function queryRuntimeMetrics() {
-  if (!runtimeEnabled) {
+  if (!runtimeD1.enabled) {
     return {
       enabled: false,
       connected: false,
@@ -26,55 +26,52 @@ async function queryRuntimeMetrics() {
     };
   }
 
-  const sql = neon(runtimeDbUrl);
-
   try {
-    const waitlistTotalRows = await sql`SELECT COUNT(*)::int AS total FROM waitlist_entries;`;
-    const waitlistDuplicateRows = await sql`
-      SELECT COALESCE(SUM(cnt - 1), 0)::int AS duplicates
+    const publishedSpots = queryRuntimeD1Rows('SELECT COUNT(*) AS total FROM spots WHERE published = 1;', runtimeD1);
+    const duplicateSlugs = queryRuntimeD1Rows(`
+      SELECT COALESCE(SUM(cnt - 1), 0) AS duplicates
       FROM (
-        SELECT COUNT(*)::int AS cnt
-        FROM waitlist_entries
+        SELECT COUNT(*) AS cnt
+        FROM spots
+        GROUP BY slug
+        HAVING COUNT(*) > 1
+      ) dup;
+    `, runtimeD1);
+    const ratingsTotal = queryRuntimeD1Rows('SELECT COUNT(*) AS total FROM ratings;', runtimeD1);
+    const tipsTotal = queryRuntimeD1Rows('SELECT COUNT(*) AS total FROM spot_tips;', runtimeD1);
+    const newsletterTotal = queryRuntimeD1Rows('SELECT COUNT(*) AS total FROM newsletter_subscribers;', runtimeD1);
+    const newsletterDuplicates = queryRuntimeD1Rows(`
+      SELECT COALESCE(SUM(cnt - 1), 0) AS duplicates
+      FROM (
+        SELECT COUNT(*) AS cnt
+        FROM newsletter_subscribers
         GROUP BY email
         HAVING COUNT(*) > 1
       ) dup;
-    `;
-    const invalidZipRows = await sql`
-      SELECT COUNT(*)::int AS invalid_zip
-      FROM waitlist_entries
-      WHERE zip_code IS NOT NULL
-        AND zip_code <> ''
-        AND zip_code !~ '^[0-9]{5}(-[0-9]{4})?$';
-    `;
+    `, runtimeD1);
 
-    const analyticsTotalRows = await sql`SELECT COUNT(*)::int AS total FROM analytics_events;`;
-    const analyticsRecentRows = await sql`
-      SELECT COUNT(*)::int AS recent_24h
-      FROM analytics_events
-      WHERE created_at >= NOW() - INTERVAL '24 hours';
-    `;
-
-    const leadsTotalRows = await sql`SELECT COUNT(*)::int AS total FROM leads;`;
-    const leadsRecentRows = await sql`
-      SELECT COUNT(*)::int AS recent_24h
-      FROM leads
-      WHERE created_at >= NOW() - INTERVAL '24 hours';
-    `;
-
-    const metrics = {
-      waitlistTotal: toInt(waitlistTotalRows[0]?.total),
-      waitlistDuplicates: toInt(waitlistDuplicateRows[0]?.duplicates),
-      waitlistInvalidZip: toInt(invalidZipRows[0]?.invalid_zip),
-      analyticsTotal: toInt(analyticsTotalRows[0]?.total),
-      analyticsRecent24h: toInt(analyticsRecentRows[0]?.recent_24h),
-      leadsTotal: toInt(leadsTotalRows[0]?.total),
-      leadsRecent24h: toInt(leadsRecentRows[0]?.recent_24h),
-    };
+    const resultSets = [publishedSpots, duplicateSlugs, ratingsTotal, tipsTotal, newsletterTotal, newsletterDuplicates];
+    const failed = resultSets.find((result) => !result.connected);
+    if (failed) {
+      return {
+        enabled: true,
+        connected: false,
+        metrics: null,
+        error: failed.error,
+      };
+    }
 
     return {
       enabled: true,
       connected: true,
-      metrics,
+      metrics: {
+        publishedSpots: toInt(publishedSpots.rows[0]?.total),
+        duplicateSlugs: toInt(duplicateSlugs.rows[0]?.duplicates),
+        ratingsTotal: toInt(ratingsTotal.rows[0]?.total),
+        tipsTotal: toInt(tipsTotal.rows[0]?.total),
+        newsletterTotal: toInt(newsletterTotal.rows[0]?.total),
+        newsletterDuplicates: toInt(newsletterDuplicates.rows[0]?.duplicates),
+      },
       error: null,
     };
   } catch (error) {
@@ -94,7 +91,7 @@ function computeRuntimeChecks(runtime) {
       {
         name: 'Runtime DB Quality Checks',
         success: true,
-        notes: 'DATABASE_URL not set; runtime checks skipped (static checks only).',
+        notes: 'D1 runtime access not configured; runtime checks skipped (static checks only).',
       },
     ];
   }
@@ -110,67 +107,77 @@ function computeRuntimeChecks(runtime) {
   }
 
   const metrics = runtime.metrics;
-  const duplicateRatio = metrics.waitlistTotal > 0 ? metrics.waitlistDuplicates / metrics.waitlistTotal : 0;
 
-  const checks = [
+  return [
     {
       name: 'Runtime DB Connectivity',
       success: true,
-      notes: 'Connected and queried metrics successfully.',
+      notes: 'Connected and queried FinderNYC content metrics successfully.',
     },
     {
-      name: 'Waitlist Duplicate Ratio Heuristic',
-      success: metrics.waitlistTotal < 100 || duplicateRatio <= 0.15,
-      notes: `duplicates=${metrics.waitlistDuplicates}/${metrics.waitlistTotal} ratio=${duplicateRatio.toFixed(3)} threshold=0.150`,
+      name: 'Published Spot Inventory Present',
+      success: metrics.publishedSpots > 0,
+      notes: `published_spots=${metrics.publishedSpots}`,
     },
     {
-      name: 'Waitlist ZIP Quality Heuristic',
-      success: metrics.waitlistInvalidZip === 0,
-      notes: `invalid_zip=${metrics.waitlistInvalidZip}`,
+      name: 'Spot Slug Uniqueness Heuristic',
+      success: metrics.duplicateSlugs === 0,
+      notes: `duplicate_slugs=${metrics.duplicateSlugs}`,
     },
     {
-      name: 'Analytics Ingestion Activity Heuristic',
-      success: metrics.analyticsTotal < 200 || metrics.analyticsRecent24h > 0,
-      notes: `analytics_recent_24h=${metrics.analyticsRecent24h} analytics_total=${metrics.analyticsTotal}`,
+      name: 'Newsletter Email Uniqueness Heuristic',
+      success: metrics.newsletterDuplicates === 0,
+      notes: `newsletter_duplicates=${metrics.newsletterDuplicates} total=${metrics.newsletterTotal}`,
     },
     {
-      name: 'Lead Ingestion Activity Heuristic',
-      success: metrics.leadsTotal < 50 || metrics.leadsRecent24h > 0,
-      notes: `leads_recent_24h=${metrics.leadsRecent24h} leads_total=${metrics.leadsTotal}`,
+      name: 'Feedback Tables Available',
+      success: metrics.ratingsTotal >= 0 && metrics.tipsTotal >= 0,
+      notes: `ratings=${metrics.ratingsTotal} tips=${metrics.tipsTotal}`,
     },
   ];
-
-  return checks;
 }
 
 async function run() {
   const staticChecks = [
     {
-      name: 'Lead Email Uniqueness Constraint',
-      success: schemaSource.includes("email: varchar('email', { length: 255 }).notNull().unique()"),
-      notes: 'Ensures dedupe guard at database layer for leads',
+      name: 'Spot Slug Uniqueness Constraint',
+      success: schemaSource.includes("slug: text('slug').notNull().unique()"),
+      notes: 'Ensures spot URLs remain stable and deduplicated.',
     },
     {
-      name: 'Lead Duplicate Handling in API',
-      success: leadsRouteSource.includes('email_exists') && (leadsRouteSource.includes("code === '23505'") || leadsRouteSource.includes("includes('unique')")),
-      notes: 'Ensures duplicate lead writes return deterministic API status',
+      name: 'Newsletter Email Uniqueness Constraint',
+      success: schemaSource.includes("email: text('email').notNull().unique()"),
+      notes: 'Ensures newsletter signups dedupe at the database layer.',
     },
     {
-      name: 'Waitlist Email Required',
-      success: schemaSource.includes("waitlist_entries") && schemaSource.includes("email: varchar('email', { length: 255 }).notNull()"),
-      notes: 'Ensures waitlist minimum identity field is required',
+      name: 'Ratings Score Range Validated in Domain Layer',
+      success: feedbackServiceSource.includes('score must be an integer between 1 and 5'),
+      notes: 'Ratings are validated before persistence.',
     },
     {
-      name: 'Waitlist API Validates Email Shape',
-      success: waitlistRouteSource.includes('z.string().email()'),
-      notes: 'Ensures invalid emails are rejected before write',
+      name: 'Tip Length Validated in Domain Layer',
+      success: feedbackServiceSource.includes('text must be between 10 and 500 characters'),
+      notes: 'Tips reject empty or oversized submissions before persistence.',
     },
     {
-      name: 'Created Timestamps on Data Tables',
+      name: 'Newsletter Email Validated in Domain Layer',
+      success: feedbackServiceSource.includes('valid email is required'),
+      notes: 'Newsletter signups reject malformed addresses before persistence.',
+    },
+    {
+      name: 'Feedback APIs Surface Validation Errors',
       success:
-        schemaSource.includes("created_at: timestamp('created_at').defaultNow()")
-        && schemaSource.match(/created_at: timestamp\('created_at'\)\.defaultNow\(\)/g)?.length >= 3,
-      notes: 'Ensures trend analysis is possible for all core tables',
+        ratingsRouteSource.includes('parsed.error')
+        && tipsRouteSource.includes('parsed.error')
+        && newsletterRouteSource.includes('parsed.error'),
+      notes: 'Route handlers return deterministic validation failures.',
+    },
+    {
+      name: 'Created Timestamps on Core Tables',
+      success:
+        schemaSource.includes("created_at: integer('created_at', { mode: 'timestamp_ms' })")
+        && schemaSource.match(/created_at: integer\('created_at', \{ mode: 'timestamp_ms' \}\)/g)?.length >= 4,
+      notes: 'Spots, tips, ratings, and newsletter tables support freshness analysis.',
     },
   ];
 
@@ -190,14 +197,12 @@ async function run() {
     details.push(`runtime query error: ${runtime.error}`);
   }
 
-  details.push('Nightly runs should provide DATABASE_URL via secrets to enable live anomaly detection.');
-
   const checks = [...staticChecks, ...runtimeChecks];
 
   const report = writeAgentReport({
     id: 'data-quality',
     title: 'Data Quality Agent Report',
-    summary: 'Validates schema-level controls and optional live DB quality heuristics for duplicates and ingestion anomalies.',
+    summary: 'Validates FinderNYC schema constraints, feedback validation, and optional live D1 inventory quality heuristics.',
     checks,
     details,
     mode,

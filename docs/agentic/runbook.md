@@ -26,5 +26,6 @@ No production deploy when a blocking agent fails in `block` mode.
 
 ## Data Quality Runtime Mode
 
-- Set `DATABASE_URL` in CI secrets to enable live data-quality heuristics (duplicates, invalid ZIPs, ingestion recency).
-- Without `DATABASE_URL`, the data-quality agent runs static schema/API checks only.
+- Set `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` in CI secrets to enable live data-quality heuristics against D1.
+- For local runs, set `D1_REMOTE_ACCESS=1` when your Wrangler session is already authenticated.
+- Without D1 runtime access, the data-quality agent runs static schema/API checks only.

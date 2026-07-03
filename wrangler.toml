@@ -16,8 +16,8 @@ routes = [
 [[d1_databases]]
 binding = "DB"
 database_name = "findernyc-production"
-database_id = "3b28bfa8-4eb9-4c1e-a342-a5557fb79344"
-preview_database_id = "0400aca1-b8b3-46d8-9d19-3f8d1efaf16d"
+database_id = "b646d8fe-ed7f-458b-936b-15f91b5e6016"
+preview_database_id = "6640508c-3bd9-413f-8ba5-f35d99f46223"
 migrations_dir = "src/db/migrations"
 
 [assets]

@@ -1,68 +1,5 @@
-export const SITE_NAME = 'FinderNYC';
-export const SITE_URL = 'https://findernyc.com';
-
-// Multi-domain site context
-export type SiteContext = {
-  name: string;
-  url: string;
-  tagline: string;
-  heroTitle: string;
-  heroSubtitle: string;
-  metaTitle: string;
-  metaDescription: string;
-  city: string | null; // null = multi-city umbrella
-};
-
-const SITES: Record<string, SiteContext> = {
-  'findernyc.com': {
-    name: 'FinderNYC',
-    url: 'https://findernyc.com',
-    tagline: 'Skip the tourist traps.',
-    heroTitle: 'Skip the tourist traps.\nHere\'s where real New Yorkers actually go.',
-    heroSubtitle: 'Curated by locals, not algorithms. Hidden gems, honest tips, zero BS.',
-    metaTitle: 'FinderNYC — Skip the Tourist Traps. Real NYC Hidden Gems.',
-    metaDescription: 'Discover where real New Yorkers actually go. Hidden gems, local tips, and honest recommendations.',
-    city: 'NYC',
-  },
-  'hiddencitygems.com': {
-    name: 'Hidden City Gems',
-    url: 'https://hiddencitygems.com',
-    tagline: 'Skip the tourist traps.',
-    heroTitle: 'Skip the tourist traps.\nDiscover where locals actually go.',
-    heroSubtitle: 'Real recommendations from real locals. Hidden gems, honest tips, zero BS.',
-    metaTitle: 'Hidden City Gems — Skip the Tourist Traps. Real Local Recommendations.',
-    metaDescription: 'Discover hidden gems in cities around the world. Real recommendations from locals, not algorithms.',
-    city: null,
-  },
-  'experiences.miami': {
-    name: 'Experiences Miami',
-    url: 'https://experiences.miami',
-    tagline: 'The real Miami.',
-    heroTitle: 'Skip the tourist traps.\nHere\'s where real Miami locals actually go.',
-    heroSubtitle: 'Curated by locals, not algorithms. Hidden gems, honest tips, zero BS.',
-    metaTitle: 'Experiences Miami — Skip the Tourist Traps. Real Miami Hidden Gems.',
-    metaDescription: 'Discover where real Miami locals actually go. Hidden gems, local tips, and honest recommendations.',
-    city: 'Miami',
-  },
-  'mmeexx.com': {
-    name: 'MMEEXX',
-    url: 'https://mmeexx.com',
-    tagline: 'Lo que los locales no te cuentan.',
-    heroTitle: 'Olvídate de las trampas para turistas.\nDescubre adónde van los locales de verdad.',
-    heroSubtitle: 'Recomendado por locales, no por algoritmos. Joyas escondidas, tips honestos, cero BS.',
-    metaTitle: 'MMEEXX — Joyas Escondidas en México. Recomendaciones Locales.',
-    metaDescription: 'Descubre adónde van los locales de verdad en México. Joyas escondidas, tips honestos y recomendaciones reales.',
-    city: 'Mexico',
-  },
-};
-
-const DEFAULT_SITE = SITES['findernyc.com'];
-
-export function getSiteContext(hostname: string): SiteContext {
-  // Strip www. and port
-  const clean = hostname.replace(/^www\./, '').split(':')[0];
-  return SITES[clean] ?? DEFAULT_SITE;
-}
+import { SITE_NAME, SITE_URL, type SiteContext } from '../site/context';
+import { absoluteUrl, type PageSeoMeta } from '../lib/page-seo';
 
 export function escapeHtml(value: string): string {
   return value
@@ -76,16 +13,17 @@ export function escapeHtml(value: string): string {
 export function fontHeadHtml(): string {
   return `<link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">`;
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">`;
 }
 
 type NavLink = { href: string; label: string };
 
 const NAV_LINKS: NavLink[] = [
-  { href: '/search', label: 'Explore' },
+  { href: '/', label: 'Home' },
+  { href: '/hidden-gems', label: 'Hidden Gems' },
   { href: '/neighborhoods', label: 'Neighborhoods' },
-  { href: '/guides', label: 'Guides' },
-  { href: '/about', label: 'About' },
+  { href: '/itineraries', label: 'Itineraries' },
+  { href: '/tips', label: 'Practical Tips' },
 ];
 
 export function navHtml(options?: { activePath?: string; site?: SiteContext }): string {
@@ -198,25 +136,22 @@ export function mobileNavScript(): string {
   })();`;
 }
 
-export type PageMeta = {
-  title: string;
-  description: string;
-  path: string;
-  noindex?: boolean;
-  structuredData?: unknown[];
-  site?: SiteContext;
-};
-
-export function pageShell(meta: PageMeta, bodyHtml: string): string {
+export function pageShell(meta: PageSeoMeta, bodyHtml: string): string {
   const site = meta.site;
   const siteUrl = site?.url ?? SITE_URL;
   const siteName = site?.name ?? SITE_NAME;
-  const canonical = `${siteUrl}${meta.path}`;
-  const ogImage = `${siteUrl}/images/og-image.svg`;
+  const canonical = absoluteUrl(meta.path, site);
+  const ogImage = absoluteUrl(meta.imagePath ?? '/images/og-image.jpg', site);
   const robots = meta.noindex ? 'noindex,nofollow' : 'index,follow';
   const structuredDataScripts = (meta.structuredData ?? [])
     .map((payload) => `<script type="application/ld+json">${JSON.stringify(payload)}</script>`)
     .join('\n  ');
+  const articleMeta = meta.type === 'article'
+    ? [
+        meta.publishedTime ? `<meta property="article:published_time" content="${meta.publishedTime}">` : '',
+        meta.modifiedTime ? `<meta property="article:modified_time" content="${meta.modifiedTime}">` : '',
+      ].filter(Boolean).join('\n  ')
+    : '';
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -227,24 +162,25 @@ export function pageShell(meta: PageMeta, bodyHtml: string): string {
   <meta name="description" content="${escapeHtml(meta.description)}">
   <meta name="robots" content="${robots}">
   <link rel="canonical" href="${canonical}">
-  <meta property="og:type" content="website">
+  <meta property="og:type" content="${meta.type ?? 'website'}">
   <meta property="og:site_name" content="${escapeHtml(siteName)}">
   <meta property="og:title" content="${escapeHtml(meta.title)}">
   <meta property="og:description" content="${escapeHtml(meta.description)}">
   <meta property="og:url" content="${canonical}">
   <meta property="og:image" content="${ogImage}">
+  ${articleMeta}
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="${escapeHtml(meta.title)}">
   <meta name="twitter:description" content="${escapeHtml(meta.description)}">
   <meta name="twitter:image" content="${ogImage}">
-  <meta name="theme-color" content="#10243f">
+  <meta name="theme-color" content="#0f1e24">
   ${fontHeadHtml()}
   <link rel="stylesheet" href="/css/styles.css">
   ${structuredDataScripts}
 </head>
 <body>
   ${navHtml({ activePath: meta.path, site })}
-  <main id="main-content">
+  <main id="main-content" class="page-main">
     ${bodyHtml}
   </main>
   ${footerHtml(site)}

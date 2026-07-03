@@ -1,5 +1,5 @@
 /**
- * Seed script — generates SQL INSERT statements for 10 NYC spots, tips, and neighborhoods.
+ * Seed script — generates SQL INSERT statements for curated NYC spots, tips, and neighborhoods.
  *
  * Usage:
  *   npx tsx src/seed.ts > seed.sql
@@ -35,6 +35,10 @@ interface Spot {
   budget_note: string;
   vibe_tags: string[];
   price_level: number;
+  latitude?: number | null;
+  longitude?: number | null;
+  google_maps_url?: string | null;
+  photo_url?: string | null;
 }
 
 const spots: Spot[] = [
@@ -46,15 +50,55 @@ const spots: Spot[] = [
     borough: "queens",
     category: "rooftop",
     description:
-      "LIC Landing is one of those places that makes you feel like you cracked the code on New York. It sits right on the waterfront in Long Island City with the entire Manhattan skyline stretched out in front of you — and somehow, nobody from out of town knows it exists. The vibes lean chill beer garden: picnic tables, string lights, food vendors rotating through.\n\nCome at sunset and grab a spot near the railing. The light hitting Midtown from across the East River is genuinely unreal. On weekends there's usually live music or a DJ, but it never gets obnoxious. This is where Queens locals go when they want skyline views without the Times Square energy.",
-    one_liner: "Waterfront beer garden with the best skyline view you've never heard of.",
-    pro_tip: "Get there 45 minutes before sunset to claim a railing spot. Bring a light jacket — it gets windy off the river.",
-    subway: "7 to Vernon Blvd–Jackson Ave, then a 10-minute walk toward the water",
-    while_here: "Walk along the Gantry Plaza State Park waterfront path. The old gantry cranes are lit up at night and look incredible.",
-    best_time: "Weekday sunset, May through October",
+      "Free skyline views over Manhattan, cold drinks in hand, and almost zero tourist energy. LIC Landing feels like a locals-only secret right on the waterfront.",
+    one_liner: "Free skyline views over Manhattan, cold drinks in hand, and almost zero tourist energy.",
+    pro_tip: "Arrive 30 to 45 minutes before sunset and head straight for the railing. It gets windy once the sun drops, so bring a light jacket.",
+    subway: "Take the 7 train to Vernon Blvd–Jackson Ave, then a quick 10-minute walk toward the water.",
+    while_here: "After the sunset, stroll the beautiful Gantry Plaza waterfront path. Then grab a great coffee or late bite at Sweetleaf. It is right nearby and way better than anything in Midtown.",
+    best_time: "Weekday sunsets from May through October",
     avoid_time: "Weekend afternoons in peak summer — it gets packed",
-    budget_note: "Beers $8-12, food truck plates $10-15. No cover.",
-    vibe_tags: ["skyline-views", "chill", "waterfront", "beer-garden", "sunset"],
+    budget_note: "Free entry. Drinks and food cost extra if you stay for a round.",
+    vibe_tags: ["skyline-views", "chill", "waterfront", "free", "sunset"],
+    price_level: 2,
+    google_maps_url: "https://www.google.com/maps/search/?api=1&query=LIC+Landing+Long+Island+City+NYC",
+    photo_url: "https://commons.wikimedia.org/wiki/Special:FilePath/45-45_Center_Boulevard%2C_Long_Island_City%2C_New_York%2C_USA_-_Tower_against_cloudy_skyline.jpg",
+  },
+  {
+    name: "Paulie Gee's Slice Shop",
+    slug: "best-slice-brooklyn-after-midnight",
+    title: "Best Slice in Brooklyn After Midnight",
+    neighborhood: "Greenpoint",
+    borough: "brooklyn",
+    category: "pizza",
+    description:
+      "Craving pizza at 1 a.m. after a night out? Skip the sad Manhattan slices and head to Paulie Gee's Slice Shop in Greenpoint. Their square Sicilian-style slices are crispy, cheesy, and actually worth the trip.",
+    one_liner: "Square Sicilian slices that are actually worth the late-night detour.",
+    pro_tip: "Go late on weekends when they stay open until 2 a.m. Cash is king and the line moves fast once the bars let out. Try the Hellboy if you like hot honey and pepperoni.",
+    subway: "G to Greenpoint Ave or L to Bedford Ave, then a short walk. Address: 110 Franklin St, Brooklyn.",
+    while_here: "Grab a nightcap at one of the dive bars nearby or walk over to L'Industrie if you want thin-crust instead.",
+    best_time: "Late on weekends, especially after midnight",
+    avoid_time: "Saturday right after the bars let out if you hate waiting for your slice",
+    budget_note: "Cheap enough to do two slices and keep moving.",
+    vibe_tags: ["late-night", "pizza", "cheap", "locals"],
+    price_level: 1,
+  },
+  {
+    name: "St. Nick's Pub",
+    slug: "free-jazz-nights-harlem-locals-love",
+    title: "Free Jazz Nights Harlem Locals Love",
+    neighborhood: "Harlem",
+    borough: "manhattan",
+    category: "bar",
+    description:
+      "Most jazz in Manhattan costs $20+ cover and feels like a tourist show. Head up to Harlem for the real thing - intimate sessions where locals actually hang out and musicians rotate in.",
+    one_liner: "Free-ish Harlem jazz nights that still feel local instead of staged.",
+    pro_tip: "Wednesday nights are the move. Show up early, sit at the bar, and order the jerk chicken - it's cheap and excellent.",
+    subway: "3 train to 149th Street or A/B/C/D to 145th or 155th. The spot sits right in the heart of Sugar Hill.",
+    while_here: "Grab a late slice or Dominican food from the spots right next door after the set ends.",
+    best_time: "Wednesday nights",
+    avoid_time: "Late Fridays if you want the music without a packed room",
+    budget_note: "Easy to keep the whole night under $20 if you keep it simple.",
+    vibe_tags: ["jazz", "free", "locals", "authentic"],
     price_level: 2,
   },
   {
@@ -134,6 +178,25 @@ const spots: Spot[] = [
     price_level: 1,
   },
   {
+    name: "Utopia Bagels",
+    slug: "best-bagel-nyc-not-ess-a-bagel",
+    title: "Best Bagel in NYC That Isn't Ess-a-Bagel",
+    neighborhood: "Queens",
+    borough: "queens",
+    category: "food",
+    description:
+      "Utopia Bagels in Queens still does it right - hand-rolled, boiled the old way, with that perfect crispy crust and chewy inside. The scallion cream cheese is made fresh and actually tastes like scallions.",
+    one_liner: "Hand-rolled Queens bagels with scallion cream cheese that actually tastes right.",
+    pro_tip: "Go early on weekends before 10 a.m. or the line gets brutal. Cash or card both work now.",
+    subway: "7 to 111th Street in the Flushing and Whitestone direction. Worth the short trip from Manhattan.",
+    while_here: "Walk five minutes to a solid Colombian bakery for coffee - the combo is unbeatable.",
+    best_time: "Early on weekend mornings",
+    avoid_time: "After 10 a.m. on weekends when the line gets heavy",
+    budget_note: "Classic breakfast pricing. Easy to justify an extra bagel for later.",
+    vibe_tags: ["bagels", "breakfast", "classic", "queens"],
+    price_level: 1,
+  },
+  {
     name: "The Cloisters",
     slug: "the-cloisters-washington-heights",
     title: "A Medieval Castle in Upper Manhattan That Most Tourists Miss",
@@ -191,6 +254,25 @@ const spots: Spot[] = [
     price_level: 2,
   },
   {
+    name: "Upstate Craft Beer & Oyster Bar",
+    slug: "best-dollar-oysters-east-village",
+    title: "Best Dollar Oysters in the East Village",
+    neighborhood: "East Village",
+    borough: "manhattan",
+    category: "food",
+    description:
+      "$1 oysters during happy hour that don't suck? Yes, they still exist. The Wayland and similar East Village spots still do dollar oysters with solid cocktails in a chill Alphabet City vibe.",
+    one_liner: "Dollar oysters and a cheap-drinks window that still feels worth knowing about.",
+    pro_tip: "Go weekdays from 4 to 7 p.m. Order a dozen and pair them with a cold beer or martini. It fills up fast once happy hour hits.",
+    subway: "F/J/M/Z to Delancey-Essex or L to 1st Ave. Easy walk from the rest of the East Village.",
+    while_here: "Stroll over to a cheap Thai spot or dive bar afterward - it is a perfect cheap date-night combo.",
+    best_time: "Weekday happy hour from 4 to 7 p.m.",
+    avoid_time: "Right after work on Fridays if you want a seat without a wait",
+    budget_note: "Dollar oysters during happy hour, then solid cocktails without wrecking the night.",
+    vibe_tags: ["oysters", "happy-hour", "cheap", "east-village"],
+    price_level: 2,
+  },
+  {
     name: "Prospect Park Long Meadow",
     slug: "prospect-park-long-meadow",
     title: "Central Park Gets All the Press But This Brooklyn Park Is Better",
@@ -207,6 +289,25 @@ const spots: Spot[] = [
     avoid_time: null,
     budget_note: "Free. Bring your own picnic supplies from the Grand Army Plaza farmers market (Saturday mornings).",
     vibe_tags: ["park", "picnic", "spacious", "dog-friendly", "brooklyn-classic"],
+    price_level: 1,
+  },
+  {
+    name: "Jackson Heights Food Crawl",
+    slug: "jackson-heights-food-crawl-tourist-spot",
+    title: "Jackson Heights Food Crawl That Beats Any Tourist Spot",
+    neighborhood: "Queens",
+    borough: "queens",
+    category: "food",
+    description:
+      "If you only do one food crawl outside Manhattan, make it Jackson Heights. The whole point is that you can walk a few blocks and hit Colombian bakeries, Tibetan momo counters, Thai snacks, and random stalls that look better than most planned dinner reservations. It feels alive in a way a polished tourist food hall never can.\n\nDo not overplan this one. The best version is loose: one stop because the grill smoke smells right, another because a line looks local, then one more because someone at the last place told you where to go next. Jackson Heights rewards curiosity more than structure, which is why it is one of the best food neighborhoods in the city.",
+    one_liner: "Colombian, Thai, and Tibetan all within three blocks. Pure flavor.",
+    pro_tip: "Show up hungry and split everything. Momos first, then arepas, then whatever looks busiest on Roosevelt.",
+    subway: "7/E/F/M/R to Jackson Heights-Roosevelt Ave",
+    while_here: "Walk 74th St and Roosevelt with no fixed plan. The point is to follow the lines and steam coming off the grills.",
+    best_time: "Saturday afternoon",
+    avoid_time: "Right at lunch rush if you hate waiting between stops",
+    budget_note: "Easy to keep under $25 a person if you share smartly.",
+    vibe_tags: ["food-crawl", "queens", "jackson-heights", "street-food", "multi-stop"],
     price_level: 1,
   },
   {
@@ -253,6 +354,30 @@ const tips: Tip[] = [
     author_area: "Astoria",
   },
   {
+    spot_slug: "best-slice-brooklyn-after-midnight",
+    text: "Best late-night slice in Brooklyn, hands down.",
+    author_name: "Alex",
+    author_area: "Williamsburg",
+  },
+  {
+    spot_slug: "best-slice-brooklyn-after-midnight",
+    text: "The square slices hit different at 1am.",
+    author_name: "Maria",
+    author_area: "",
+  },
+  {
+    spot_slug: "free-jazz-nights-harlem-locals-love",
+    text: "Real Harlem jazz, not the tourist version.",
+    author_name: "Carlos",
+    author_area: "",
+  },
+  {
+    spot_slug: "free-jazz-nights-harlem-locals-love",
+    text: "Best night out uptown for under $20 total.",
+    author_name: "Priya",
+    author_area: "",
+  },
+  {
     spot_slug: "los-tacos-no-1-chelsea",
     text: "The adobada is non-negotiable. I've been coming here since they opened and it's never let me down.",
     author_name: "Mike",
@@ -263,6 +388,18 @@ const tips: Tip[] = [
     text: "Skip the line by going at 11:30 on a Tuesday. Three tacos, out in 10 minutes.",
     author_name: "Daniela",
     author_area: "Chelsea",
+  },
+  {
+    spot_slug: "best-bagel-nyc-not-ess-a-bagel",
+    text: "Better than most Manhattan spots, no question.",
+    author_name: "David",
+    author_area: "",
+  },
+  {
+    spot_slug: "best-bagel-nyc-not-ess-a-bagel",
+    text: "Everything bagel with scallion is stupid good.",
+    author_name: "Alex",
+    author_area: "",
   },
   {
     spot_slug: "birria-landia-jackson-heights",
@@ -277,10 +414,28 @@ const tips: Tip[] = [
     author_area: "Jackson Heights",
   },
   {
+    spot_slug: "best-dollar-oysters-east-village",
+    text: "Best $1 oyster deal left in Manhattan.",
+    author_name: "Sarah",
+    author_area: "",
+  },
+  {
+    spot_slug: "best-dollar-oysters-east-village",
+    text: "Go early or the good ones run out.",
+    author_name: "Mike",
+    author_area: "",
+  },
+  {
     spot_slug: "abraco-east-village",
     text: "The olive oil cake here changed my understanding of what cake can be. Not exaggerating.",
     author_name: "Lena",
     author_area: "East Village",
+  },
+  {
+    spot_slug: "jackson-heights-food-crawl-tourist-spot",
+    text: "Do not build a perfect route. The best version is wandering and following the busiest counter each time.",
+    author_name: "Rafi",
+    author_area: "Jackson Heights",
   },
   {
     spot_slug: "pdt-east-village",
@@ -323,6 +478,12 @@ const neighborhoods: Neighborhood[] = [
     slug: "east-village",
     borough: "manhattan",
     vibe: "Punk rock roots with a modern edge. Dive bars next to ramen shops next to speakeasies. Still the most interesting neighborhood in Manhattan.",
+  },
+  {
+    name: "Harlem",
+    slug: "harlem",
+    borough: "manhattan",
+    vibe: "Historic, musical, and full of neighborhood institutions. Go for jazz, soul food, brownstone blocks, and a pace that still feels lived in.",
   },
   {
     name: "Long Island City",
@@ -378,14 +539,14 @@ const neighborhoods: Neighborhood[] = [
 
 const lines: string[] = [];
 
-lines.push("-- Seed data: 10 NYC spots, tips, and neighborhoods");
+lines.push("-- Seed data: curated NYC spots, tips, and neighborhoods");
 lines.push("-- Generated by src/seed.ts");
 lines.push("");
 
 // Spots
 for (const s of spots) {
   lines.push(
-    `INSERT INTO spots (name, slug, title, neighborhood, borough, category, description, one_liner, pro_tip, subway, while_here, best_time, avoid_time, budget_note, vibe_tags, price_level, latitude, longitude, google_maps_url, photo_url, source, published, created_at, updated_at) VALUES (${sq(s.name)}, ${sq(s.slug)}, ${sq(s.title)}, ${sq(s.neighborhood)}, ${sq(s.borough)}, ${sq(s.category)}, ${sq(s.description)}, ${sq(s.one_liner)}, ${sq(s.pro_tip)}, ${sq(s.subway)}, ${sq(s.while_here)}, ${sq(s.best_time)}, ${nullable(s.avoid_time)}, ${sq(s.budget_note)}, ${sq(JSON.stringify(s.vibe_tags))}, ${s.price_level}, NULL, NULL, NULL, NULL, NULL, 1, ${now}, ${now});`
+    `INSERT INTO spots (name, slug, title, neighborhood, borough, category, description, one_liner, pro_tip, subway, while_here, best_time, avoid_time, budget_note, vibe_tags, price_level, latitude, longitude, google_maps_url, photo_url, source, published, created_at, updated_at) VALUES (${sq(s.name)}, ${sq(s.slug)}, ${sq(s.title)}, ${sq(s.neighborhood)}, ${sq(s.borough)}, ${sq(s.category)}, ${sq(s.description)}, ${sq(s.one_liner)}, ${sq(s.pro_tip)}, ${sq(s.subway)}, ${sq(s.while_here)}, ${sq(s.best_time)}, ${nullable(s.avoid_time)}, ${sq(s.budget_note)}, ${sq(JSON.stringify(s.vibe_tags))}, ${s.price_level}, ${s.latitude ?? "NULL"}, ${s.longitude ?? "NULL"}, ${nullable(s.google_maps_url ?? null)}, ${nullable(s.photo_url ?? null)}, NULL, 1, ${now}, ${now});`
   );
 }
 

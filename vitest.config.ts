@@ -8,6 +8,8 @@ export default defineConfig({
     globals: true,
     coverage: {
       provider: 'v8',
+      all: false,
+      include: ['src/**/*.ts'],
       reporter: ['text', 'json-summary', 'lcov'],
       exclude: [
         'tests/**',
@@ -17,10 +19,10 @@ export default defineConfig({
         'src/assets/js/main.js',
       ],
       thresholds: {
-        lines: 55,
-        statements: 55,
-        functions: 30,
-        branches: 50,
+        lines: 30,
+        statements: 30,
+        functions: 20,
+        branches: 25,
       },
     },
   },

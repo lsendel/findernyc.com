@@ -40,6 +40,117 @@ export function runCommand(command, options = {}) {
   };
 }
 
+export function runProcess(command, args = [], options = {}) {
+  const startedAt = Date.now();
+  const result = spawnSync(command, args, {
+    shell: false,
+    encoding: 'utf8',
+    cwd: options.cwd ?? process.cwd(),
+    env: { ...process.env, ...(options.env ?? {}) },
+  });
+
+  const durationMs = Date.now() - startedAt;
+  const code = typeof result.status === 'number' ? result.status : 1;
+
+  return {
+    command: [command, ...args].join(' '),
+    code,
+    success: code === 0,
+    durationMs,
+    stdout: result.stdout ?? '',
+    stderr: result.stderr ?? '',
+  };
+}
+
+export function getRuntimeD1Config() {
+  const override = process.env.D1_REMOTE_ACCESS;
+  const enabled = override === '0'
+    ? false
+    : override === '1'
+      ? true
+      : Boolean(process.env.CLOUDFLARE_API_TOKEN);
+
+  return {
+    binding: process.env.D1_BINDING ?? 'DB',
+    enabled,
+    preview: process.env.D1_PREVIEW === '1',
+  };
+}
+
+export function queryRuntimeD1Rows(command, options = {}) {
+  const config = {
+    ...getRuntimeD1Config(),
+    ...options,
+  };
+
+  if (!config.enabled) {
+    return {
+      enabled: false,
+      connected: false,
+      rows: [],
+      meta: null,
+      error: null,
+    };
+  }
+
+  const args = [
+    'wrangler',
+    'd1',
+    'execute',
+    config.binding,
+    '--remote',
+    '--json',
+    '--command',
+    command,
+  ];
+
+  if (config.preview) {
+    args.push('--preview');
+  }
+
+  const result = runProcess('npx', args, options);
+  if (!result.success) {
+    return {
+      enabled: true,
+      connected: false,
+      rows: [],
+      meta: null,
+      error: result.stderr || result.stdout || `wrangler d1 execute failed with exit code ${result.code}`,
+    };
+  }
+
+  try {
+    const parsed = JSON.parse(result.stdout);
+    const statement = Array.isArray(parsed) ? parsed[0] : parsed;
+
+    if (!statement?.success) {
+      return {
+        enabled: true,
+        connected: false,
+        rows: [],
+        meta: statement?.meta ?? null,
+        error: statement?.error ?? 'wrangler d1 execute returned an unsuccessful response',
+      };
+    }
+
+    return {
+      enabled: true,
+      connected: true,
+      rows: Array.isArray(statement.results) ? statement.results : [],
+      meta: statement.meta ?? null,
+      error: null,
+    };
+  } catch (error) {
+    return {
+      enabled: true,
+      connected: false,
+      rows: [],
+      meta: null,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
 export function parseStringArray(source) {
   return source
     .split(',')

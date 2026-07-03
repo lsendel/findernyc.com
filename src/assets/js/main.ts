@@ -25,20 +25,21 @@
     const input = document.getElementById(inputId) as HTMLInputElement | null;
     const dropdown = document.getElementById(dropdownId);
     if (!input || !dropdown) return;
+    const dropdownEl = dropdown;
 
     let timer: ReturnType<typeof setTimeout> | null = null;
 
     function hideDropdown() {
-      if (dropdown) dropdown.style.display = 'none';
+      dropdownEl.setAttribute('hidden', '');
     }
 
     function showDropdown() {
-      if (dropdown) dropdown.style.display = 'block';
+      dropdownEl.removeAttribute('hidden');
     }
 
     function clearDropdown() {
-      while (dropdown && dropdown.firstChild) {
-        dropdown.removeChild(dropdown.firstChild);
+      while (dropdownEl.firstChild) {
+        dropdownEl.removeChild(dropdownEl.firstChild);
       }
     }
 
@@ -94,7 +95,7 @@
     function renderNeighborhood(n: { name: string; slug: string; borough?: string }): HTMLAnchorElement {
       const a = document.createElement('a');
       a.className = 'suggest-item';
-      a.href = `/search?neighborhood=${encodeURIComponent(n.name)}`;
+      a.href = `/hidden-gems?neighborhood=${encodeURIComponent(n.name)}`;
 
       const bold = document.createElement('b');
       bold.textContent = n.name;
@@ -131,13 +132,13 @@
           let hasItems = false;
 
           const spots = buildSection('Spots', data.spots, renderSpot);
-          if (spots) { dropdown!.appendChild(spots); hasItems = true; }
+          if (spots) { dropdownEl.appendChild(spots); hasItems = true; }
 
           const guides = buildSection('Guides', data.guides, renderGuide);
-          if (guides) { dropdown!.appendChild(guides); hasItems = true; }
+          if (guides) { dropdownEl.appendChild(guides); hasItems = true; }
 
           const hoods = buildSection('Neighborhoods', data.neighborhoods, renderNeighborhood);
-          if (hoods) { dropdown!.appendChild(hoods); hasItems = true; }
+          if (hoods) { dropdownEl.appendChild(hoods); hasItems = true; }
 
           hasItems ? showDropdown() : hideDropdown();
         } catch {
@@ -148,7 +149,7 @@
 
     // Close on click outside
     document.addEventListener('click', (e) => {
-      if (!dropdown!.contains(e.target as Node) && e.target !== input) {
+      if (!dropdownEl.contains(e.target as Node) && e.target !== input) {
         hideDropdown();
       }
     });
@@ -182,7 +183,7 @@
           const res = await fetch('/api/ratings', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ spot_id: spotId, score, session_id: sid }),
+            body: JSON.stringify({ spotId: Number(spotId), score, sessionId: sid }),
           });
 
           if (res.ok) {
@@ -235,10 +236,10 @@
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            spot_id: spotId,
+            spotId: Number(spotId),
             text,
-            author_name: (fd.get('author_name') as string || '').trim() || undefined,
-            author_area: (fd.get('author_area') as string || '').trim() || undefined,
+            authorName: (fd.get('author_name') as string || '').trim() || undefined,
+            authorArea: (fd.get('author_area') as string || '').trim() || undefined,
           }),
         });
 

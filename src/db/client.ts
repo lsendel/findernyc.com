@@ -1,8 +1,8 @@
-import { neon } from '@neondatabase/serverless';
-import { drizzle } from 'drizzle-orm/neon-http';
+import { drizzle } from 'drizzle-orm/d1';
 import * as schema from './schema';
 
-export function createDb(databaseUrl: string) {
-  const sql = neon(databaseUrl);
-  return drizzle(sql, { schema });
+export type DatabaseBinding = Parameters<typeof drizzle>[0];
+
+export function createDb(database: DatabaseBinding) {
+  return drizzle(database, { schema });
 }

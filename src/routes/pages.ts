@@ -1,10 +1,28 @@
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
+import { createFinderNycServices } from '../application/service-factory';
+import {
+  getGuidePageContent,
+  getGuidesIndexContent,
+  getLandingPageContent,
+  getNeighborhoodsPageContent,
+  getSpotPageContent,
+} from '../application/content/use-cases';
+import { buildAboutPage, buildPrivacyPage, buildTermsPage, buildTipsPage } from '../application/content/static-pages';
+import { buildSearchPageModel } from '../application/discovery/use-cases';
+import { isUnavailableD1Error } from '../lib/d1-errors';
 import { landingPageHtml } from '../templates/landing';
-import { spotPageHtml, type SpotPageData } from '../templates/spot';
-import { searchPageHtml, type SearchResultSpot, type SearchResultGuide } from '../templates/search';
-import type { SiteContext } from '../templates/layout';
+import { spotPageHtml } from '../templates/spot';
+import { searchPageHtml } from '../templates/search';
+import {
+  guidePageHtml,
+  guidesIndexPageHtml,
+  neighborhoodsPageHtml,
+  simplePageHtml,
+} from '../templates/content';
+import type { SiteContext } from '../site/context';
 
-type Env = { Bindings: { DB: D1Database }; Variables: { site: SiteContext } };
+type Env = { Bindings: { DB?: D1Database }; Variables: { site: SiteContext } };
+type PagesContext = Context<Env>;
 
 const pagesRouter = new Hono<Env>();
 
@@ -14,37 +32,26 @@ const pagesRouter = new Hono<Env>();
 
 pagesRouter.get('/', async (c) => {
   const db = c.env.DB;
+  if (!db) {
+    return c.html(landingPageHtml({ site: c.get('site') }));
+  }
 
-  const [spotsResult, neighborhoodsResult] = await Promise.all([
-    db
-      .prepare(
-        `SELECT s.slug, s.title, s.neighborhood, s.category, s.one_liner, s.photo_url,
-                (SELECT ROUND(AVG(r.score), 1) FROM ratings r WHERE r.spot_id = s.id) AS avg_rating,
-                (SELECT COUNT(*) FROM ratings r WHERE r.spot_id = s.id) AS rating_count
-         FROM spots s
-         WHERE s.published = 1
-         ORDER BY avg_rating DESC NULLS LAST
-         LIMIT 6`,
-      )
-      .all(),
-    db
-      .prepare(
-        `SELECT n.slug, n.name, n.borough, n.vibe, n.photo_url,
-                (SELECT COUNT(*) FROM spots s WHERE s.neighborhood = n.name AND s.published = 1) AS spot_count
-         FROM neighborhoods n
-         ORDER BY spot_count DESC
-         LIMIT 8`,
-      )
-      .all(),
-  ]);
+  try {
+    const content = await getLandingPageContent(createFinderNycServices(db).content);
 
-  return c.html(
-    landingPageHtml({
-      featuredSpots: spotsResult.results as any[],
-      neighborhoods: neighborhoodsResult.results as any[],
-      site: c.get('site'),
-    }),
-  );
+    return c.html(
+      landingPageHtml({
+        featuredSpots: content.featuredSpots,
+        neighborhoods: content.neighborhoods,
+        site: c.get('site'),
+      }),
+    );
+  } catch (error) {
+    if (isUnavailableD1Error(error)) {
+      return c.html(landingPageHtml({ site: c.get('site') }));
+    }
+    throw error;
+  }
 });
 
 /* ------------------------------------------------------------------ */
@@ -53,166 +60,140 @@ pagesRouter.get('/', async (c) => {
 
 pagesRouter.get('/spots/:slug', async (c) => {
   const db = c.env.DB;
+  if (!db) return c.text('Spot not found', 404);
   const { slug } = c.req.param();
+  try {
+    const spot = await getSpotPageContent(createFinderNycServices(db).content, slug);
 
-  const spot = await db
-    .prepare(
-      `SELECT s.*,
-              (SELECT ROUND(AVG(r.score), 1) FROM ratings r WHERE r.spot_id = s.id) AS avg_rating,
-              (SELECT COUNT(*) FROM ratings r WHERE r.spot_id = s.id) AS rating_count
-       FROM spots s
-       WHERE s.slug = ? AND s.published = 1`,
-    )
-    .bind(slug)
-    .first();
-
-  if (!spot) return c.text('Spot not found', 404);
-
-  const [tipsResult, relatedResult] = await Promise.all([
-    db
-      .prepare(
-        `SELECT text, author_name, author_area
-         FROM spot_tips
-         WHERE spot_id = ? AND approved = 1
-         ORDER BY created_at DESC
-         LIMIT 10`,
-      )
-      .bind(spot.id)
-      .all(),
-    db
-      .prepare(
-        `SELECT s.slug, s.title, s.neighborhood, s.category, s.one_liner,
-                (SELECT ROUND(AVG(r.score), 1) FROM ratings r WHERE r.spot_id = s.id) AS avg_rating,
-                (SELECT COUNT(*) FROM ratings r WHERE r.spot_id = s.id) AS rating_count
-         FROM spots s
-         WHERE s.neighborhood = ? AND s.id != ? AND s.published = 1
-         LIMIT 4`,
-      )
-      .bind(spot.neighborhood, spot.id)
-      .all(),
-  ]);
-
-  const data: SpotPageData = {
-    ...(spot as any),
-    tips: tipsResult.results as any[],
-    related_spots: relatedResult.results as any[],
-    site: c.get('site'),
-  };
-
-  return c.html(spotPageHtml(data));
+    if (!spot) return c.text('Spot not found', 404);
+    return c.html(spotPageHtml({ ...spot, site: c.get('site') }));
+  } catch (error) {
+    if (isUnavailableD1Error(error)) {
+      return c.text('Spot not found', 404);
+    }
+    throw error;
+  }
 });
 
-/* ------------------------------------------------------------------ */
-/*  GET /search  — Search results page (SSR)                           */
-/* ------------------------------------------------------------------ */
-
-pagesRouter.get('/search', async (c) => {
+async function renderSearchPage(c: PagesContext) {
   try {
-  const db = c.env.DB;
-  const q = c.req.query('q') ?? '';
-  const category = c.req.query('category') ?? '';
-  const borough = c.req.query('borough') ?? '';
-  const neighborhood = c.req.query('neighborhood') ?? '';
-  const sort = c.req.query('sort') ?? 'relevance';
+    const db = c.env.DB;
+    const searchInput = {
+      query: c.req.query('q'),
+      category: c.req.query('category'),
+      borough: c.req.query('borough'),
+      neighborhood: c.req.query('neighborhood'),
+      sort: c.req.query('sort'),
+    };
 
-  const bindings: unknown[] = [];
-  const conditions: string[] = ['s.published = 1'];
-  let fromClause: string;
-  let orderBy: string;
-
-  if (q) {
-    fromClause = 'spots_fts JOIN spots s ON s.id = spots_fts.rowid';
-    conditions.push('spots_fts MATCH ?');
-    bindings.push(q + '*');
-  } else {
-    fromClause = 'spots s';
-  }
-
-  if (category) {
-    conditions.push('s.category = ?');
-    bindings.push(category);
-  }
-  if (borough) {
-    conditions.push('s.borough = ?');
-    bindings.push(borough);
-  }
-  if (neighborhood) {
-    conditions.push('s.neighborhood = ?');
-    bindings.push(neighborhood);
-  }
-
-  const whereClause = conditions.join(' AND ');
-
-  switch (sort) {
-    case 'rating':
-      orderBy = 'avg_rating DESC NULLS LAST';
-      break;
-    case 'newest':
-      orderBy = 's.created_at DESC';
-      break;
-    default:
-      orderBy = q ? 'spots_fts.rank' : 'avg_rating DESC NULLS LAST';
-  }
-
-  const spotsQuery = `
-    SELECT s.slug, s.title, s.name, s.neighborhood, s.borough, s.category,
-           s.one_liner, s.price_level, s.photo_url, s.subway,
-           (SELECT ROUND(AVG(r.score), 1) FROM ratings r WHERE r.spot_id = s.id) AS avg_rating,
-           (SELECT COUNT(*) FROM ratings r WHERE r.spot_id = s.id) AS rating_count
-    FROM ${fromClause}
-    WHERE ${whereClause}
-    ORDER BY ${orderBy}
-    LIMIT 20
-  `;
-
-  const countQuery = `
-    SELECT COUNT(*) AS total
-    FROM ${fromClause}
-    WHERE ${whereClause}
-  `;
-
-  const requests: Promise<any>[] = [
-    db.prepare(spotsQuery).bind(...bindings).all(),
-    db.prepare(countQuery).bind(...bindings).first(),
-  ];
-
-  // If text query, also search guides
-  if (q) {
-    requests.push(
-      db
-        .prepare(
-          `SELECT slug, title, type, excerpt, cover_photo_url
-           FROM guides
-           WHERE published = 1 AND (title LIKE ? OR excerpt LIKE ?)
-           LIMIT 3`,
-        )
-        .bind(`%${q}%`, `%${q}%`)
-        .all(),
+    const results = await buildSearchPageModel(
+      db ? createFinderNycServices(db).discovery : null,
+      searchInput,
     );
-  }
-
-  const results = await Promise.all(requests);
-
-  const spots = results[0].results as SearchResultSpot[];
-  const total = (results[1] as any)?.total ?? 0;
-  const guides: SearchResultGuide[] = q ? (results[2].results as SearchResultGuide[]) : [];
-
-  return c.html(
-    searchPageHtml({
-      query: q,
-      category,
-      borough,
-      sort,
-      spots,
-      guides,
-      total,
-      site: c.get('site'),
-    }),
-  );
+    return c.html(
+      searchPageHtml({
+        query: results.query,
+        category: results.category,
+        borough: results.borough,
+        sort: results.sort,
+        spots: results.spots,
+        guides: results.guides,
+        total: results.total,
+        site: c.get('site'),
+      }),
+    );
   } catch (err) {
+    if (isUnavailableD1Error(err)) {
+      return c.html(
+        searchPageHtml({
+          query: c.req.query('q') ?? '',
+          category: c.req.query('category') ?? '',
+          borough: c.req.query('borough') ?? '',
+          sort: c.req.query('sort') ?? 'relevance',
+          spots: [],
+          guides: [],
+          total: 0,
+          site: c.get('site'),
+        }),
+      );
+    }
     console.error('Search page error:', err);
     return c.text(`Search error: ${err}`, 500);
   }
+}
+
+/* ------------------------------------------------------------------ */
+/*  GET /hidden-gems and /search  — Search results page (SSR)          */
+/* ------------------------------------------------------------------ */
+
+pagesRouter.get('/hidden-gems', renderSearchPage);
+pagesRouter.get('/search', renderSearchPage);
+
+async function renderGuidesIndexPage(c: PagesContext) {
+  const db = c.env.DB;
+  if (!db) {
+    return c.html(guidesIndexPageHtml([], c.get('site')));
+  }
+
+  try {
+    return c.html(guidesIndexPageHtml(await getGuidesIndexContent(createFinderNycServices(db).content), c.get('site')));
+  } catch (error) {
+    if (isUnavailableD1Error(error)) {
+      return c.html(guidesIndexPageHtml([], c.get('site')));
+    }
+    throw error;
+  }
+}
+
+pagesRouter.get('/itineraries', renderGuidesIndexPage);
+pagesRouter.get('/guides', renderGuidesIndexPage);
+
+pagesRouter.get('/guides/:slug', async (c) => {
+  const db = c.env.DB;
+  if (!db) return c.text('Guide not found', 404);
+
+  try {
+    const guide = await getGuidePageContent(createFinderNycServices(db).content, c.req.param('slug'));
+    if (!guide) return c.text('Guide not found', 404);
+    return c.html(guidePageHtml(guide, c.get('site')));
+  } catch (error) {
+    if (isUnavailableD1Error(error)) {
+      return c.text('Guide not found', 404);
+    }
+    throw error;
+  }
 });
+
+pagesRouter.get('/neighborhoods', async (c) => {
+  const db = c.env.DB;
+  if (!db) {
+    return c.html(neighborhoodsPageHtml([], c.get('site')));
+  }
+
+  try {
+    return c.html(neighborhoodsPageHtml(await getNeighborhoodsPageContent(createFinderNycServices(db).content), c.get('site')));
+  } catch (error) {
+    if (isUnavailableD1Error(error)) {
+      return c.html(neighborhoodsPageHtml([], c.get('site')));
+    }
+    throw error;
+  }
+});
+
+pagesRouter.get('/about', (c) =>
+  c.html(simplePageHtml({ ...buildAboutPage(c.get('site')), site: c.get('site') })),
+);
+
+pagesRouter.get('/privacy', (c) =>
+  c.html(simplePageHtml({ ...buildPrivacyPage(c.get('site')), site: c.get('site') })),
+);
+
+pagesRouter.get('/terms', (c) =>
+  c.html(simplePageHtml({ ...buildTermsPage(c.get('site')), site: c.get('site') })),
+);
+
+pagesRouter.get('/tips', (c) =>
+  c.html(simplePageHtml({ ...buildTipsPage(c.get('site')), site: c.get('site') })),
+);
 
 export { pagesRouter };

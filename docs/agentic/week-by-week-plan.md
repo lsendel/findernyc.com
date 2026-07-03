@@ -39,9 +39,9 @@
 
 ## Week 6 (completed)
 
-- Expanded `data-quality` with optional runtime DB checks when `DATABASE_URL` is set.
+- Expanded `data-quality` with optional runtime D1 checks when Cloudflare auth is available.
 - Added duplicate ratio, invalid ZIP, and ingestion recency heuristics.
-- Enabled nightly runtime metrics collection via `DATABASE_URL` secret.
+- Enabled nightly runtime metrics collection via Cloudflare D1 access in CI.
 - Completed validation: `npm run agent:all` passes in block mode.
 
 ## Week 7 (completed)

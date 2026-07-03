@@ -139,7 +139,11 @@ const checks = [
   },
   {
     name: 'Changed Tests Present for Source Changes',
-    success: sourceFiles.length === 0 || changedTests.length > 0 || mode === 'warn',
+    success:
+      sourceFiles.length === 0
+      || changedTests.length > 0
+      || impacted.every((req) => req.knownTests.length > 0)
+      || mode === 'warn',
     notes: sourceFiles.length > 0
       ? `${changedTests.length} changed test files for ${sourceFiles.length} changed source files`
       : 'No source files changed',

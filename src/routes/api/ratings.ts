@@ -1,49 +1,30 @@
 import { Hono } from 'hono';
+import { createFinderNycServices } from '../../application/service-factory';
+import { parseRatingInput, recordSpotRating } from '../../application/feedback/use-cases';
 
-type Env = { Bindings: { DB: D1Database } };
+type Env = { Bindings: { DB?: D1Database } };
 const router = new Hono<Env>();
 
 router.post('/', async (c) => {
   const db = c.env.DB;
+  if (!db) {
+    return c.json({ success: false, error: 'database_unavailable' }, 503);
+  }
 
-  let body: { spot_id?: number; score?: number; session_id?: string };
+  let body: unknown;
   try {
     body = await c.req.json();
   } catch {
     return c.json({ success: false, error: 'invalid_json' }, 400);
   }
 
-  const { spot_id, score, session_id } = body;
-
-  if (!spot_id || typeof spot_id !== 'number') {
-    return c.json({ success: false, error: 'spot_id is required' }, 400);
-  }
-  if (typeof score !== 'number' || score < 1 || score > 5 || !Number.isInteger(score)) {
-    return c.json({ success: false, error: 'score must be an integer between 1 and 5' }, 400);
+  const parsed = parseRatingInput(body);
+  if (!parsed.ok) {
+    return c.json({ success: false, error: parsed.error }, 400);
   }
 
   try {
-    if (session_id) {
-      // Check for existing rating from this session
-      const existing = await db
-        .prepare(`SELECT id FROM ratings WHERE spot_id = ? AND session_id = ?`)
-        .bind(spot_id, session_id)
-        .first<{ id: number }>();
-
-      if (existing) {
-        await db
-          .prepare(`UPDATE ratings SET score = ? WHERE id = ?`)
-          .bind(score, existing.id)
-          .run();
-        return c.json({ success: true });
-      }
-    }
-
-    await db
-      .prepare(`INSERT INTO ratings (spot_id, score, session_id) VALUES (?, ?, ?)`)
-      .bind(spot_id, score, session_id ?? null)
-      .run();
-
+    await recordSpotRating(createFinderNycServices(db).feedback, parsed.value);
     return c.json({ success: true });
   } catch (err) {
     console.error('Rating error:', err);

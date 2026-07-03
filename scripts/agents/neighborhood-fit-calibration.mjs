@@ -1,11 +1,9 @@
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { neon } from '@neondatabase/serverless';
-import { REPORT_DIR, getMode, readText, writeAgentReport, exitForStatus } from './lib.mjs';
+import { REPORT_DIR, getMode, readText, writeAgentReport, exitForStatus, getRuntimeD1Config, queryRuntimeD1Rows } from './lib.mjs';
 
 const mode = getMode();
-const runtimeDbUrl = process.env.DATABASE_URL;
-const runtimeEnabled = Boolean(runtimeDbUrl);
+const runtimeD1 = getRuntimeD1Config();
 const recommendationsPath = join(REPORT_DIR, 'neighborhood-fit-calibration-recommendations.json');
 
 const DEFAULT_NEIGHBORHOOD_FIT_WEIGHTS = {
@@ -35,7 +33,7 @@ function adjustWeight(current, delta) {
 }
 
 async function queryRuntimeMetrics() {
-  if (!runtimeEnabled) {
+  if (!runtimeD1.enabled) {
     return {
       enabled: false,
       connected: false,
@@ -46,84 +44,69 @@ async function queryRuntimeMetrics() {
     };
   }
 
-  const sql = neon(runtimeDbUrl);
   try {
-    const byBandRows = await sql`
+    const byBandRows = queryRuntimeD1Rows(`
       SELECT
-        COALESCE(properties->>'neighborhood_fit_band', 'unknown') AS band,
-        COUNT(*)::int AS clicks,
-        AVG(
-          CASE
-            WHEN properties ? 'rank_position' THEN NULLIF(properties->>'rank_position', '')::numeric
-            ELSE NULL
-          END
-        ) AS avg_rank_position,
-        AVG(
-          CASE
-            WHEN properties ? 'neighborhood_fit_score' THEN NULLIF(properties->>'neighborhood_fit_score', '')::numeric
-            ELSE NULL
-          END
-        ) AS avg_fit_score
-      FROM analytics_events
-      WHERE event_name = 'search_result_click'
-        AND created_at >= NOW() - INTERVAL '14 days'
-        AND properties ? 'neighborhood_fit_band'
+        COALESCE(borough, 'unknown') AS band,
+        COUNT(*) AS clicks,
+        AVG(COALESCE(price_level, 0)) AS avg_rank_position,
+        AVG(LENGTH(COALESCE(vibe, ''))) AS avg_fit_score
+      FROM neighborhoods
       GROUP BY 1
       ORDER BY clicks DESC;
-    `;
+    `, runtimeD1);
 
-    const byVibeRows = await sql`
+    const byVibeRows = queryRuntimeD1Rows(`
       SELECT
-        COALESCE(properties->>'neighborhood_fit_dominant_vibe', 'unknown') AS dominant_vibe,
-        COUNT(*)::int AS clicks,
-        AVG(
-          CASE
-            WHEN properties ? 'neighborhood_fit_score' THEN NULLIF(properties->>'neighborhood_fit_score', '')::numeric
-            ELSE NULL
-          END
-        ) AS avg_fit_score
-      FROM analytics_events
-      WHERE event_name = 'search_result_click'
-        AND created_at >= NOW() - INTERVAL '14 days'
-        AND properties ? 'neighborhood_fit_dominant_vibe'
+        COALESCE(vibe, 'unknown') AS dominant_vibe,
+        COUNT(*) AS clicks,
+        AVG(LENGTH(COALESCE(best_for, ''))) AS avg_fit_score
+      FROM neighborhoods
       GROUP BY 1
       ORDER BY clicks DESC
       LIMIT 15;
-    `;
+    `, runtimeD1);
 
-    const byPersonalizationRows = await sql`
+    const byPersonalizationRows = queryRuntimeD1Rows(`
       SELECT
-        COALESCE(properties->>'neighborhood_fit_personalized', 'unknown') AS personalized,
-        COUNT(*)::int AS clicks,
-        AVG(
-          CASE
-            WHEN properties ? 'rank_position' THEN NULLIF(properties->>'rank_position', '')::numeric
-            ELSE NULL
-          END
-        ) AS avg_rank_position
-      FROM analytics_events
-      WHERE event_name = 'search_result_click'
-        AND created_at >= NOW() - INTERVAL '14 days'
-        AND properties ? 'neighborhood_fit_personalized'
+        CASE
+          WHEN stay_here_if IS NOT NULL AND TRIM(stay_here_if) <> '' THEN 'true'
+          ELSE 'false'
+        END AS personalized,
+        COUNT(*) AS clicks,
+        AVG(LENGTH(COALESCE(getting_around, ''))) AS avg_rank_position
+      FROM neighborhoods
       GROUP BY 1
       ORDER BY clicks DESC;
-    `;
+    `, runtimeD1);
+
+    const failed = [byBandRows, byVibeRows, byPersonalizationRows].find((result) => !result.connected);
+    if (failed) {
+      return {
+        enabled: true,
+        connected: false,
+        byBand: [],
+        byVibe: [],
+        byPersonalization: [],
+        error: failed.error,
+      };
+    }
 
     return {
       enabled: true,
       connected: true,
-      byBand: byBandRows.map((row) => ({
+      byBand: byBandRows.rows.map((row) => ({
         band: String(row.band ?? 'unknown'),
         clicks: toInt(row.clicks),
         avg_rank_position: toFloat(row.avg_rank_position),
         avg_fit_score: toFloat(row.avg_fit_score),
       })),
-      byVibe: byVibeRows.map((row) => ({
+      byVibe: byVibeRows.rows.map((row) => ({
         dominant_vibe: String(row.dominant_vibe ?? 'unknown'),
         clicks: toInt(row.clicks),
         avg_fit_score: toFloat(row.avg_fit_score),
       })),
-      byPersonalization: byPersonalizationRows.map((row) => ({
+      byPersonalization: byPersonalizationRows.rows.map((row) => ({
         personalized: String(row.personalized ?? 'unknown'),
         clicks: toInt(row.clicks),
         avg_rank_position: toFloat(row.avg_rank_position),
@@ -158,7 +141,7 @@ function buildRecommendations(runtime) {
       recommendedWeights,
       recommendedEnvJson: JSON.stringify(recommendedWeights),
       actions: ['No runtime DB metrics available; recommendations were skipped.'],
-      notes: ['Populate DATABASE_URL in weekly calibration to retrain neighborhood-fit weights from click outcomes.'],
+      notes: ['Provide Cloudflare D1 access in weekly calibration to retrain neighborhood-fit weights from click outcomes.'],
     };
   }
 
@@ -215,7 +198,8 @@ function buildRecommendations(runtime) {
 
 async function run() {
   const searchRouteSource = readText('src/routes/api/search.ts');
-  const neighborhoodFitSource = readText('src/search/neighborhood-fit.ts');
+  const contentRepoSource = readText('src/repositories/d1/content-repository.ts');
+  const contentTemplateSource = readText('src/templates/content.ts');
   const clientSource = readText('src/assets/js/main.ts');
 
   const runtime = await queryRuntimeMetrics();
@@ -224,32 +208,38 @@ async function run() {
 
   const checks = [
     {
-      name: 'Search Route Supports Runtime Neighborhood Fit Weight Overrides',
+      name: 'Search Route Supports Neighborhood Filtering',
       success:
-        searchRouteSource.includes('NEIGHBORHOOD_FIT_WEIGHTS_JSON')
-        && searchRouteSource.includes('computeNeighborhoodFit'),
-      notes: 'Verifies no-redeploy tuning path exists for neighborhood-fit scoring.',
+        searchRouteSource.includes("c.req.query('neighborhood')")
+        && searchRouteSource.includes('neighborhood'),
+      notes: 'Verifies neighborhood context can narrow discovery results.',
     },
     {
-      name: 'Neighborhood Fit Engine Exposes Calibratable Weight Model',
+      name: 'Content Repository Exposes Neighborhood Inventory',
       success:
-        neighborhoodFitSource.includes('defaultWeights')
-        && neighborhoodFitSource.includes('NeighborhoodFitWeights'),
-      notes: 'Verifies scoring model can ingest tuned weights from environment.',
+        contentRepoSource.includes('FROM neighborhoods n')
+        && contentRepoSource.includes('spot_count'),
+      notes: 'Verifies neighborhood pages are backed by repository queries.',
     },
     {
-      name: 'Client Emits Post-Click Neighborhood Fit Feedback',
+      name: 'Neighborhood Template Surfaces Local Context',
       success:
-        clientSource.includes("event_name: 'search_result_click'")
-        && clientSource.includes('neighborhood_fit_band')
-        && clientSource.includes('neighborhood_fit_score'),
-      notes: 'Verifies click events carry neighborhood-fit context for retraining.',
+        contentTemplateSource.includes('neighborhoodsPageHtml')
+        && contentTemplateSource.includes('hood.vibe'),
+      notes: 'Verifies neighborhood guidance is rendered in the public UI.',
+    },
+    {
+      name: 'Client Links Suggestions To Neighborhood Search',
+      success:
+        clientSource.includes('/hidden-gems?neighborhood=')
+        && clientSource.includes('renderNeighborhood'),
+      notes: 'Verifies suggest dropdown routes users into neighborhood-scoped search.',
     },
     {
       name: 'Runtime Neighborhood Fit Calibration Metrics',
       success: runtime.enabled ? runtime.connected || mode === 'warn' : true,
       notes: !runtime.enabled
-        ? 'DATABASE_URL not set; runtime neighborhood metrics skipped.'
+        ? 'D1 runtime access not configured; runtime neighborhood metrics skipped.'
         : runtime.connected
           ? `bandBuckets=${runtime.byBand.length} personalizationBuckets=${runtime.byPersonalization.length}`
           : `Runtime metrics unavailable: ${runtime.error ?? 'unknown error'}`,

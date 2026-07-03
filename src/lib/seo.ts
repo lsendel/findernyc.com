@@ -1,4 +1,5 @@
-import { SITE_NAME, SITE_URL, type SiteContext } from '../templates/layout';
+import { SITE_NAME, SITE_URL, type SiteContext } from '../site/context';
+import { absoluteUrl } from './page-seo';
 
 type SpotLike = {
   name: string;
@@ -8,8 +9,8 @@ type SpotLike = {
   borough?: string | null;
   latitude?: number | null;
   longitude?: number | null;
-  avg_rating?: number | null;
-  review_count?: number | null;
+  averageRating?: number | null;
+  reviewCount?: number | null;
 };
 
 export function placeJsonLd(spot: SpotLike, site?: SiteContext): Record<string, unknown> {
@@ -39,11 +40,11 @@ export function placeJsonLd(spot: SpotLike, site?: SiteContext): Record<string, 
     };
   }
 
-  if (spot.avg_rating != null) {
+  if (spot.averageRating != null) {
     ld.aggregateRating = {
       '@type': 'AggregateRating',
-      ratingValue: spot.avg_rating,
-      ...(spot.review_count != null ? { reviewCount: spot.review_count } : {}),
+      ratingValue: spot.averageRating,
+      ...(spot.reviewCount != null ? { reviewCount: spot.reviewCount } : {}),
     };
   }
 
@@ -74,9 +75,78 @@ export function websiteJsonLd(site?: SiteContext): Record<string, unknown> {
     name: siteName,
     url: siteUrl,
     potentialAction: {
-      '@type': 'SearchAction',
-      target: `${siteUrl}/search?q={search_term_string}`,
+    '@type': 'SearchAction',
+      target: `${siteUrl}/hidden-gems?q={search_term_string}`,
       'query-input': 'required name=search_term_string',
+    },
+  };
+}
+
+export function collectionPageJsonLd(
+  options: {
+    name: string;
+    description: string;
+    path: string;
+  },
+  site?: SiteContext,
+): Record<string, unknown> {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'CollectionPage',
+    name: options.name,
+    description: options.description,
+    url: absoluteUrl(options.path, site),
+  };
+}
+
+export function itemListJsonLd(
+  items: Array<{ name: string; url: string }>,
+): Record<string, unknown> {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'ItemList',
+    itemListElement: items.map((item, index) => ({
+      '@type': 'ListItem',
+      position: index + 1,
+      name: item.name,
+      url: item.url,
+    })),
+  };
+}
+
+export function articleJsonLd(
+  article: {
+    headline: string;
+    description?: string | null;
+    path: string;
+    imagePath?: string | null;
+    publishedTime?: string | null;
+    modifiedTime?: string | null;
+    section?: string | null;
+  },
+  site?: SiteContext,
+): Record<string, unknown> {
+  const siteName = site?.name ?? SITE_NAME;
+  const siteUrl = site?.url ?? SITE_URL;
+
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    headline: article.headline,
+    description: article.description ?? undefined,
+    url: absoluteUrl(article.path, site),
+    image: article.imagePath ? [absoluteUrl(article.imagePath, site)] : undefined,
+    datePublished: article.publishedTime ?? undefined,
+    dateModified: article.modifiedTime ?? undefined,
+    articleSection: article.section ?? undefined,
+    publisher: {
+      '@type': 'Organization',
+      name: siteName,
+      url: siteUrl,
+      logo: {
+        '@type': 'ImageObject',
+        url: absoluteUrl('/images/gem.svg', site),
+      },
     },
   };
 }

@@ -1,53 +1,44 @@
-import { escapeHtml, pageShell, SITE_URL, type SiteContext } from './layout';
+import type { SpotPageViewModel } from '../application/content/presenters';
+import { buildPageSeo } from '../lib/page-seo';
 import { placeJsonLd, breadcrumbJsonLd } from '../lib/seo';
+import { escapeHtml, pageShell } from './layout';
+import { SITE_URL, type SiteContext } from '../site/context';
 
-export type SpotPageData = {
-  id: number;
-  name: string;
-  slug: string;
-  title: string;
-  neighborhood: string;
-  borough: string;
-  category: string;
-  description: string;
-  one_liner: string | null;
-  pro_tip: string | null;
-  subway: string | null;
-  while_here: string | null;
-  best_time: string | null;
-  avoid_time: string | null;
-  budget_note: string | null;
-  vibe_tags: string | null;
-  price_level: number | null;
-  latitude: number | null;
-  longitude: number | null;
-  google_maps_url: string | null;
-  photo_url: string | null;
-  avg_rating: number | null;
-  rating_count: number;
-  tips: Array<{ text: string; author_name: string | null; author_area: string | null }>;
-  related_spots: Array<{
-    slug: string;
-    title: string;
-    neighborhood: string;
-    category: string;
-    one_liner: string | null;
-    avg_rating: number | null;
-    rating_count: number;
-  }>;
-  site?: SiteContext;
-};
-
-function formatBorough(borough: string): string {
-  return borough
-    .split('_')
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+function formatCategoryLabel(category: string): string {
+  return category
+    .split(/[-_]/g)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
 }
 
-function priceDisplay(level: number | null): string {
-  if (level == null || level < 1) return '';
-  return '$'.repeat(Math.min(level, 4));
+function buildIntroText(spot: SpotPageViewModel): string | null {
+  if (spot.oneLiner) return spot.oneLiner;
+  const firstParagraph = spot.descriptionParagraphs[0];
+  if (!firstParagraph) return null;
+  const sentences = firstParagraph.match(/[^.!?]+[.!?]+/g) ?? [firstParagraph];
+  return sentences.slice(0, 2).join(' ').trim();
+}
+
+function buildMapSearchUrl(spot: SpotPageViewModel): string {
+  if (spot.googleMapsUrl) return spot.googleMapsUrl;
+  if (spot.latitude != null && spot.longitude != null) {
+    return `https://www.google.com/maps/search/?api=1&query=${spot.latitude},${spot.longitude}`;
+  }
+  const query = [spot.name, spot.neighborhood, 'New York City'].filter(Boolean).join(', ');
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+}
+
+function buildMapEmbedUrl(spot: SpotPageViewModel): string {
+  if (spot.googleMapsUrl?.includes('/maps/d/')) {
+    if (spot.googleMapsUrl.includes('/embed')) return spot.googleMapsUrl;
+    const mid = spot.googleMapsUrl.match(/[?&]mid=([^&]+)/)?.[1];
+    if (mid) return `https://www.google.com/maps/d/u/0/embed?mid=${mid}`;
+  }
+  if (spot.latitude != null && spot.longitude != null) {
+    return `https://www.google.com/maps?q=${spot.latitude},${spot.longitude}&z=15&output=embed`;
+  }
+  const query = [spot.name, spot.neighborhood, 'New York City'].filter(Boolean).join(', ');
+  return `https://www.google.com/maps?q=${encodeURIComponent(query)}&output=embed`;
 }
 
 function renderStars(avg: number | null, count: number): string {
@@ -64,18 +55,19 @@ function renderStars(avg: number | null, count: number): string {
       : 'Be the first to rate';
 
   return `<section class="spot-rating">
+      <h2>⭐ Rate this spot</h2>
       <div class="stars">${stars}</div>
       <p class="rating-text">${ratingText}</p>
     </section>`;
 }
 
-function renderRelatedCard(spot: SpotPageData['related_spots'][number]): string {
+function renderRelatedCard(spot: SpotPageViewModel['relatedSpots'][number]): string {
   const rating =
-    spot.avg_rating != null && spot.rating_count > 0
-      ? `<span class="card-rating">\u2605 ${escapeHtml(spot.avg_rating.toFixed(1))} (${spot.rating_count})</span>`
+    spot.averageRating != null && spot.ratingCount > 0
+      ? `<span class="card-rating">\u2605 ${escapeHtml(spot.averageRating.toFixed(1))} (${spot.ratingCount})</span>`
       : '';
-  const oneLiner = spot.one_liner
-    ? `<p class="card-one-liner">${escapeHtml(spot.one_liner)}</p>`
+  const oneLiner = spot.oneLiner
+    ? `<p class="card-one-liner">${escapeHtml(spot.oneLiner)}</p>`
     : '';
 
   return `<a href="/spots/${escapeHtml(spot.slug)}" class="spot-card">
@@ -86,67 +78,136 @@ function renderRelatedCard(spot: SpotPageData['related_spots'][number]): string 
       </a>`;
 }
 
-export function spotPageHtml(spot: SpotPageData): string {
-  const boroughDisplay = formatBorough(spot.borough);
-  const price = priceDisplay(spot.price_level);
+export function spotPageHtml(spot: SpotPageViewModel & { site?: SiteContext }): string {
+  const boroughDisplay = spot.boroughLabel;
+  const price = spot.priceLabel;
   const metaParts = [spot.neighborhood, boroughDisplay, spot.category, price].filter(Boolean);
+  const introText = buildIntroText(spot);
+  const mapSearchUrl = buildMapSearchUrl(spot);
+  const mapEmbedUrl = buildMapEmbedUrl(spot);
+  const heroChips = [
+    `<span class="spot-highlight spot-highlight--category">${escapeHtml(formatCategoryLabel(spot.category))}</span>`,
+    spot.priceLabel ? `<span class="spot-highlight spot-highlight--price">${escapeHtml(spot.priceLabel)}</span>` : '',
+    ...spot.vibeTags.slice(0, 4).map((tag) => `<span class="spot-highlight spot-highlight--vibe">${escapeHtml(tag)}</span>`),
+  ].filter(Boolean).join('');
+  const detailChips = [
+    spot.priceLabel ? `<span class="vibe-tag vibe-tag--price">Price ${escapeHtml(spot.priceLabel)}</span>` : '',
+    ...spot.vibeTags.map((tag) => `<span class="vibe-tag">${escapeHtml(tag)}</span>`),
+  ].join('');
+  const quickFacts = [
+    spot.bestTime ? { label: 'Best time', value: spot.bestTime } : null,
+    spot.avoidTime ? { label: 'Skip', value: spot.avoidTime } : null,
+    spot.subway ? { label: 'Closest train', value: spot.subway } : null,
+    spot.budgetNote ? { label: 'Budget', value: spot.budgetNote } : null,
+    { label: 'Neighborhood', value: spot.neighborhood },
+  ].filter((item): item is { label: string; value: string } => Boolean(item));
 
   // Hero
-  const photoHtml = spot.photo_url
-    ? `<img src="${escapeHtml(spot.photo_url)}" alt="${escapeHtml(spot.name)}" loading="eager">`
+  const heroImageAlt = spot.vibeTags.includes('sunset')
+    ? `Sunset skyline view from ${spot.name} in ${spot.neighborhood}`
+    : `${spot.title} in ${spot.neighborhood}`;
+  const photoHtml = spot.photoUrl
+    ? `<img class="spot-hero-image" src="${escapeHtml(spot.photoUrl)}" alt="${escapeHtml(heroImageAlt)}" loading="eager">`
+    : '';
+  const heroClass = spot.photoUrl ? 'spot-hero' : 'spot-hero spot-hero--fallback';
+  const heroCaption = spot.vibeTags.includes('sunset')
+    ? `Sunset from ${spot.name} - zero crowds, real views.`
+    : `View from ${spot.name} in ${spot.neighborhood}.`;
+  const heroCaptionHtml = spot.photoUrl
+    ? `<div class="spot-hero-caption-wrap container">
+      <p class="spot-hero-caption">${escapeHtml(heroCaption)}</p>
+    </div>`
     : '';
 
-  const heroHtml = `<header class="spot-hero">
+  const heroHtml = `<header class="${heroClass}">
     ${photoHtml}
     <div class="spot-hero-overlay">
+      <p class="eyebrow">Local spot</p>
       <h1>${escapeHtml(spot.title)}</h1>
       <p class="spot-meta">${metaParts.map(escapeHtml).join(' &middot; ')}</p>
+      <div class="spot-highlight-row">${heroChips}</div>
     </div>
   </header>`;
 
   // Body
-  const descriptionHtml = spot.description
-    .split('\n\n')
-    .map((p) => `<p>${escapeHtml(p.trim())}</p>`)
-    .filter((p) => p !== '<p></p>')
+  const descriptionHtml = spot.descriptionParagraphs
+    .slice(1)
+    .map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`)
     .join('\n      ');
 
-  const proTipHtml = spot.pro_tip
-    ? `<div class="pro-tip"><strong>Pro tip:</strong> ${escapeHtml(spot.pro_tip)}</div>`
+  const proTipHtml = spot.proTip
+    ? `<section class="info-card pro-tip">
+      <h3>Pro Tip</h3>
+      <p>${escapeHtml(spot.proTip)}</p>
+    </section>`
     : '';
 
   const subwayHtml = spot.subway
-    ? `<div class="getting-there">\u{1F687} <strong>Subway:</strong> ${escapeHtml(spot.subway)}</div>`
+    ? `<section class="info-card getting-there">
+      <h3>Getting There</h3>
+      <p>\u{1F687} ${escapeHtml(spot.subway)}</p>
+    </section>`
     : '';
 
-  const whileHereHtml = spot.while_here
-    ? `<div class="while-here"><strong>While you're in ${escapeHtml(spot.neighborhood)}:</strong> ${escapeHtml(spot.while_here)}</div>`
+  const whileHereHtml = spot.whileHere
+    ? `<section class="while-here while-here--feature">
+      <p class="eyebrow">Bonus stop nearby</p>
+      <h2>While you're in ${escapeHtml(spot.neighborhood)}</h2>
+      <p>${escapeHtml(spot.whileHere)}</p>
+    </section>`
     : '';
 
-  const budgetHtml = spot.budget_note
-    ? `<div class="budget-note"><strong>Budget:</strong> ${escapeHtml(spot.budget_note)}</div>`
+  const bestTimeHtml = spot.bestTime
+    ? `<section class="info-card best-time">
+      <h3>Best Time</h3>
+      <p>${escapeHtml(spot.bestTime)}</p>
+    </section>`
     : '';
 
-  const bestTimeHtml = spot.best_time
-    ? `<div class="best-time"><strong>Best time:</strong> ${escapeHtml(spot.best_time)}</div>`
+  const mapsLinkHtml = `<a href="${escapeHtml(mapSearchUrl)}" target="_blank" rel="noopener noreferrer" class="maps-link">\u{1F4CD} Open in Google Maps</a>`;
+  const mapSectionHtml = `<section class="map-section spot-map">
+      <div class="spot-map-copy">
+        <h3>Map</h3>
+        <p>Check the route before you go so the stop actually fits your night.</p>
+        ${mapsLinkHtml}
+      </div>
+      <div class="spot-map-embed">
+        <iframe
+          src="${escapeHtml(mapEmbedUrl)}"
+          title="Map for ${escapeHtml(spot.title)}"
+          loading="lazy"
+          referrerpolicy="no-referrer-when-downgrade"
+        ></iframe>
+      </div>
+    </section>`;
+
+  const oneLinerHtml = introText
+    ? `<p class="spot-dek">${escapeHtml(introText)}</p>`
     : '';
 
-  const mapsLinkHtml = spot.google_maps_url
-    ? `<a href="${escapeHtml(spot.google_maps_url)}" target="_blank" rel="noopener noreferrer" class="maps-link">\u{1F4CD} View on Google Maps</a>`
+  const storyHtml = descriptionHtml
+    ? `<section class="spot-story">
+        <p class="eyebrow">Why go</p>
+        ${descriptionHtml}
+      </section>`
     : '';
 
-  // Vibe tags
-  let vibeTagsHtml = '';
-  if (spot.vibe_tags) {
-    try {
-      const tags: string[] = JSON.parse(spot.vibe_tags);
-      if (tags.length > 0) {
-        vibeTagsHtml = `<div class="vibe-tags">${tags.map((t) => `<span class="vibe-tag">${escapeHtml(t)}</span>`).join('')}</div>`;
-      }
-    } catch {
-      // invalid JSON, skip
-    }
-  }
+  const summaryHtml = `<aside class="spot-summary">
+      <p class="eyebrow">Quick read</p>
+      <h2>Plan the stop</h2>
+      <dl class="spot-summary-list">
+        ${quickFacts
+          .map((fact) => `<div class="spot-summary-row"><dt>${escapeHtml(fact.label)}</dt><dd>${escapeHtml(fact.value)}</dd></div>`)
+          .join('\n        ')}
+      </dl>
+    </aside>`;
+
+  const vibeTagsHtml = detailChips
+    ? `<section class="spot-vibe-panel">
+      <p class="eyebrow">Vibe and price</p>
+      <div class="vibe-tags">${detailChips}</div>
+    </section>`
+    : '';
 
   // Tips
   const tipsSectionHtml =
@@ -155,8 +216,8 @@ export function spotPageHtml(spot: SpotPageData): string {
       <h2>What locals are saying</h2>
       ${spot.tips
         .map((tip) => {
-          const name = tip.author_name ? escapeHtml(tip.author_name) : 'A local';
-          const area = tip.author_area ? `, ${escapeHtml(tip.author_area)}` : '';
+          const name = tip.authorName ? escapeHtml(tip.authorName) : 'A local';
+          const area = tip.authorArea ? `, ${escapeHtml(tip.authorArea)}` : '';
           return `<blockquote class="local-tip"><p>&ldquo;${escapeHtml(tip.text)}&rdquo;</p><cite>&mdash; ${name}${area}</cite></blockquote>`;
         })
         .join('\n      ')}
@@ -165,7 +226,7 @@ export function spotPageHtml(spot: SpotPageData): string {
 
   // Submit tip form
   const submitTipHtml = `<section class="submit-tip">
-      <h3>Know something about this spot? Drop your tip below</h3>
+      <h3>Know a better spot? Drop your tip below 👇</h3>
       <form id="tip-form" data-spot-id="${spot.id}">
         <textarea name="text" placeholder="What should people know?" required minlength="10" maxlength="500" rows="3"></textarea>
         <div class="tip-form-row">
@@ -179,29 +240,33 @@ export function spotPageHtml(spot: SpotPageData): string {
 
   // Related spots
   const relatedHtml =
-    spot.related_spots.length > 0
+    spot.relatedSpots.length > 0
       ? `<section class="nearby-spots">
       <h2>More in ${escapeHtml(spot.neighborhood)}</h2>
       <div class="spot-card-grid">
-        ${spot.related_spots.map(renderRelatedCard).join('\n        ')}
+        ${spot.relatedSpots.map(renderRelatedCard).join('\n        ')}
       </div>
     </section>`
       : '';
 
   const bodyHtml = `<article class="spot-page">
   ${heroHtml}
+  ${heroCaptionHtml}
   <div class="spot-content container">
-    <section class="spot-body">
-      ${descriptionHtml}
-      ${proTipHtml}
-      ${subwayHtml}
-      ${whileHereHtml}
-      ${budgetHtml}
-      ${bestTimeHtml}
-      ${mapsLinkHtml}
+    <section class="spot-overview">
+      <div class="spot-body">
+        ${oneLinerHtml}
+        ${storyHtml}
+        ${proTipHtml}
+        ${bestTimeHtml}
+        ${subwayHtml}
+        ${mapSectionHtml}
+        ${whileHereHtml}
+      </div>
+      ${summaryHtml}
     </section>
     ${vibeTagsHtml}
-    ${renderStars(spot.avg_rating, spot.rating_count)}
+    ${renderStars(spot.averageRating, spot.ratingCount)}
     ${tipsSectionHtml}
     ${submitTipHtml}
     ${relatedHtml}
@@ -210,7 +275,7 @@ export function spotPageHtml(spot: SpotPageData): string {
 
   // Meta
   const siteUrl = spot.site?.url ?? SITE_URL;
-  const metaDescription = spot.one_liner || spot.description.slice(0, 160);
+  const metaDescription = spot.oneLiner || spot.description.slice(0, 160);
 
   const structuredData = [
     placeJsonLd({
@@ -221,25 +286,26 @@ export function spotPageHtml(spot: SpotPageData): string {
       borough: spot.borough,
       latitude: spot.latitude,
       longitude: spot.longitude,
-      avg_rating: spot.avg_rating,
-      review_count: spot.rating_count,
+      averageRating: spot.averageRating,
+      reviewCount: spot.ratingCount,
     }, spot.site),
     breadcrumbJsonLd([
       { name: 'Home', url: siteUrl },
-      { name: spot.neighborhood, url: `${siteUrl}/search?neighborhood=${encodeURIComponent(spot.neighborhood)}` },
+      { name: spot.neighborhood, url: `${siteUrl}/hidden-gems?neighborhood=${encodeURIComponent(spot.neighborhood)}` },
       { name: spot.title, url: `${siteUrl}/spots/${spot.slug}` },
     ]),
   ];
 
   const siteName = spot.site?.name ?? 'FinderNYC';
   return pageShell(
-    {
-      title: `${spot.title} | ${siteName}`,
+    buildPageSeo({
+      title: spot.title,
       description: metaDescription,
       path: `/spots/${spot.slug}`,
       structuredData,
       site: spot.site,
-    },
+      imagePath: spot.photoUrl ?? '/images/og-image.jpg',
+    }),
     bodyHtml,
   );
 }
