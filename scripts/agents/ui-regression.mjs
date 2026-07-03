@@ -12,8 +12,9 @@ const currentDir = 'output/playwright/current';
 
 const routes = [
   { id: 'home', path: '/' },
-  { id: 'contact', path: '/contact' },
-  { id: 'blog-guide', path: '/blog/local-event-discovery-guide' },
+  { id: 'search', path: '/hidden-gems?q=coffee' },
+  { id: 'neighborhoods', path: '/neighborhoods' },
+  { id: 'about', path: '/about' },
 ];
 
 function ensureDir(path) {
