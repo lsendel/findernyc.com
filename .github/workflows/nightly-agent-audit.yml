@@ -33,6 +33,14 @@ jobs:
       - name: Run non-blocking nightly audit
         run: node scripts/agents/run-all.mjs
 
+      - name: Run production regression (advisory)
+        continue-on-error: true
+        env:
+          PRODUCTION_BASE_URL: https://findernyc.com
+          PRODUCTION_REGRESSION_SKIP_LOCAL: '1'
+          AGENT_MODE: warn
+        run: npm run agent:production-regression
+
       - name: Upload nightly reports
         if: always()
         uses: actions/upload-artifact@v4

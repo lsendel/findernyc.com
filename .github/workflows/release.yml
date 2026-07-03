@@ -226,3 +226,16 @@ jobs:
       - name: Deploy skipped (missing Cloudflare secrets)
         if: env.CLOUDFLARE_API_TOKEN == '' || env.CLOUDFLARE_ACCOUNT_ID == ''
         run: echo "Cloudflare deploy skipped because required secrets are not configured."
+
+      - name: Verify production regression
+        env:
+          PRODUCTION_BASE_URL: https://findernyc.com
+          PRODUCTION_REGRESSION_SKIP_LOCAL: '1'
+        run: npm run agent:production-regression
+
+      - name: Upload production regression report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-regression-report
+          path: output/agent-reports/production-regression.*

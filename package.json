@@ -13,7 +13,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:build-import:d1": "node scripts/d1/build-d1-import-sql.mjs",
     "db:import:d1": "node scripts/d1/apply-d1-import.mjs",
-    "db:verify:d1": "node scripts/d1/verify-d1-import.mjs"
+    "db:verify:d1": "node scripts/d1/verify-d1-import.mjs",
+    "agent:production-regression": "node scripts/agents/production-regression.mjs"
   },
   "dependencies": {
     "@ts-rest/core": "^3.52.0",
