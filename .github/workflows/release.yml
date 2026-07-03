@@ -165,16 +165,18 @@ jobs:
         run: UPDATE_BASELINE=1 npm run agent:ui-regression
 
       - name: Commit updated baselines
+        continue-on-error: true
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           if git diff --quiet tests/visual/baseline/; then
             echo "No baseline changes to commit"
-          else
-            git add tests/visual/baseline/
-            git commit -m "Update visual baselines from CI [skip ci]"
-            git push
+            exit 0
           fi
+          git add tests/visual/baseline/
+          git commit -m "Update visual baselines from CI [skip ci]"
+          git pull --rebase origin main
+          git push origin main
 
       - name: Upload UI regression artifacts
         if: always()
