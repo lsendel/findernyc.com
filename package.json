@@ -8,6 +8,8 @@
     "build:client": "esbuild src/assets/js/main.ts --bundle --minify --target=esnext --outdir=src/assets/js --entry-names=[name]",
     "typecheck": "tsc --noEmit",
     "test": "vitest --run",
+    "test:a11y-gate": "vitest --run tests/a11y/axe.test.ts",
+    "test:screen-reader-smoke": "node scripts/accessibility/screen-reader-smoke.mjs",
     "test:coverage": "vitest --run --coverage",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
