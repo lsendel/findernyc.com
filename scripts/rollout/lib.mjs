@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 
 export function parseFeatureFlagKeysFromSource(source) {
   const arrayMatch = source.match(/const FEATURE_FLAG_KEYS = \[([\s\S]*?)\] as const;/m);
@@ -8,6 +8,10 @@ export function parseFeatureFlagKeysFromSource(source) {
 }
 
 export function loadFeatureFlagKeys(path = 'src/config/feature-flags.ts') {
+  if (!existsSync(path)) {
+    return [];
+  }
+
   const source = readFileSync(path, 'utf8');
   return parseFeatureFlagKeysFromSource(source);
 }

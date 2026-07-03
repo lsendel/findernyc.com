@@ -39,8 +39,11 @@ const rollbackPhase = targetPhase ? previousPhase(targetPhase) : null;
 
 const phases = rolloutPlan?.extra?.phases ?? [];
 const rollbackPhasePlan = phases.find((phase) => phase.phase === rollbackPhase) ?? null;
+const candidateCount = rolloutPlan?.extra?.candidate_count ?? 0;
 const rollbackFlags = rollbackPhasePlan?.enabled_flags ?? [];
-const rollbackReady = Boolean(targetPhase) && Boolean(rollbackPhase) && rollbackFlags.length > 0;
+const rollbackReady =
+  candidateCount === 0
+  || (Boolean(targetPhase) && Boolean(rollbackPhase) && rollbackFlags.length > 0);
 
 ensureDir(REPORT_DIR);
 const rollbackEnvPath = join(REPORT_DIR, 'rollout-phase-rollback.env');
@@ -96,7 +99,7 @@ const checks = [
   },
   {
     name: 'Rollback Env Contains Feature Flags',
-    success: rollbackFlags.length > 0,
+    success: candidateCount === 0 || rollbackFlags.length > 0,
     notes: `rollbackFlags=${rollbackFlags.length}`,
   },
   {

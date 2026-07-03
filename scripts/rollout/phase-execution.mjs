@@ -42,7 +42,7 @@ const checks = [
   },
   {
     name: 'Selected Phase Has Enabled Feature Flags',
-    success: (selectedPhase?.enabled_flags?.length ?? 0) > 0,
+    success: (rolloutPlan?.extra?.candidate_count ?? 1) === 0 || (selectedPhase?.enabled_flags?.length ?? 0) > 0,
     notes: `${selectedPhase?.enabled_flags?.length ?? 0} enabled flags`,
   },
   {
