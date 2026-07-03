@@ -75,6 +75,7 @@ const hasRollbackGuardDecision =
   rollbackGuardDecision === 'PROCEED' || rollbackGuardDecision === 'ROLLBACK_HOLD';
 
 const plannedPhases = rolloutPlan?.extra?.phases ?? [];
+const candidateCount = rolloutPlan?.extra?.candidate_count ?? 0;
 const currentPhasePlan = plannedPhases.find((phase) => phase.phase === currentPhase) ?? null;
 const targetPromotePhase = nextPhase(currentPhase);
 
@@ -93,6 +94,10 @@ if (currentPhase === 'full') {
     recommendedPhase = fallback;
     rationale.push('Full rollout signals degraded; recommend rollback to lower-risk phase.');
   }
+} else if (candidateCount === 0) {
+  decision = `HOLD_${currentPhase.toUpperCase()}`;
+  recommendedPhase = currentPhase;
+  rationale.push('No feature flags configured after pivot; keep advisory rollout phase.');
 } else if (isReleaseReady && isRollbackGuardProceed && isKpiHealthy && targetPromotePhase) {
   decision = `PROMOTE_TO_${targetPromotePhase.toUpperCase()}`;
   recommendedPhase = targetPromotePhase;

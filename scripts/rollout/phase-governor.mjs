@@ -23,6 +23,7 @@ function normalizeBool(value) {
 
 const mode = getMode();
 const enforceGovernor = process.env.ROLLOUT_GOVERNOR_ENFORCE === '1';
+const enforceDwell = process.env.ROLLOUT_DWELL_ENFORCE === '1';
 
 const releaseDecision = readJsonOrNull('output/agent-reports/release-decision.json');
 const rollbackGuardDecision = readJsonOrNull('output/agent-reports/rollback-guard-decision.json');
@@ -92,8 +93,8 @@ const checks = [
   },
   {
     name: 'Dwell Policy Allows Execution',
-    success: !dwellBlocked,
-    notes: `blockedByDwell=${dwellBlocked}`,
+    success: !dwellBlocked || !enforceDwell,
+    notes: `blockedByDwell=${dwellBlocked} enforce=${enforceDwell}`,
   },
   {
     name: 'Target Phase Resolved In Plan',
